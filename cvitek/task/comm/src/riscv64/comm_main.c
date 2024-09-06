@@ -25,7 +25,7 @@
 #define debug_printf(...)
 #endif
 
-void prvQueueISR(void);
+void tx_mailbox_driver_output_ISR(void);
 DEFINE_CVI_SPINLOCK(mailbox_lock, SPIN_MBOX);
 /* mailbox parameters */
 volatile struct mailbox_set_register *mbox_reg;
@@ -38,7 +38,9 @@ void main_cvirtos(void)
 	printf("create cvi task\n");
 
 	/* Start the tasks and timer running. */ // cvitek/driver/common/src/system.c
-	request_irq(MBOX_INT_C906_2ND, prvQueueISR, 0, "mailbox", (void *)0);
+	request_irq(MBOX_INT_C906_2ND, tx_mailbox_driver_output_ISR, 0, "mailbox", (void *)0);
+
+	tx_mailbox_driver_initialize();
 
 	/* Enter the ThreadX kernel.  */
 	tx_kernel_enter();
@@ -511,7 +513,7 @@ UINT    status;
 
 #elif (USE_MAILBOX_EXAMPLE==1)
 
-void prvCmdQuRunTask(ULONG thread_input);
+void tx_mailbox_driver_output(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
 TX_THREAD thread_0;
@@ -566,7 +568,7 @@ void tx_application_define(void *first_unused_memory)
 	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
-	ret = tx_thread_create(&mail_thread, "mail thread", prvCmdQuRunTask, 0, 
+	ret = tx_thread_create(&mail_thread, "mail thread", tx_mailbox_driver_output, 0, 
 			 pointer, DEMO_STACK_SIZE, 1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
 	IS_TX_ERROR(ret);
 }
@@ -602,9 +604,38 @@ void thread_1_entry(ULONG thread_input)
 	}
 }
 
-void prvCmdQuRunTask(ULONG thread_input)
+
+/*
+ * mailbox
+ *
+ */
+
+VOID tx_mailbox_driver_initialize(VOID)
 {
-	/* Remove compiler warning about unused parameter. */
+    
+	/* initialize mailbox global variable */
+	unsigned int reg_base = MAILBOX_REG_BASE;
+	mbox_reg = (struct mailbox_set_register *)reg_base;
+	mbox_done_reg = (struct mailbox_done_register *)(reg_base + 2);
+	mailbox_context = (unsigned long *)(MAILBOX_REG_BUFF);
+	
+	/* Initialize the two counting semaphores used to control
+    the simple driver I/O. */
+
+	cvi_spinlock_init();
+
+    /* Setup interrupt vectors for input and output ISRs.
+    The initial vector handling should call the ISRs
+    defined in this file. */
+
+    /* Configure serial device hardware for RX/TX interrupt
+    generation, baud rate, stop bits, etc. */
+}
+
+VOID tx_mailbox_driver_output(ULONG thread_input)
+{
+  
+  	/* Remove compiler warning about unused parameter. */
 	(void)thread_input;
 
 	cmdqu_t rtos_cmdq;
@@ -619,15 +650,12 @@ void prvCmdQuRunTask(ULONG thread_input)
 
 	/* to compatible code with linux side */
 	cmdq = &rtos_cmdq;
-	mbox_reg = (struct mailbox_set_register *)reg_base;
-	mbox_done_reg = (struct mailbox_done_register *)(reg_base + 2);
-	mailbox_context = (unsigned long *)(MAILBOX_REG_BUFF);
-
-	cvi_spinlock_init();
-	printf("prvCmdQuRunTask run\n");
+	printf("tx_mailbox_driver_output run\n");
 
 	for (;;) {
-		//xQueueReceive(gTaskCtx[0].queHandle, &rtos_cmdq, portMAX_DELAY);
+		  /* Determine if the hardware is ready to transmit a
+			character. If not, suspend until the previous output
+			completes. */
 		tx_queue_receive(&mailbox_queue, &rtos_cmdq, TX_WAIT_FOREVER);
 
 		switch (rtos_cmdq.cmd_id) {
@@ -671,6 +699,7 @@ void prvCmdQuRunTask(ULONG thread_input)
 		default:
 		send_label:
 			/* used to send command to linux*/
+			/* Send the character through the hardware. */
 			rtos_cmdqu_t = (cmdqu_t *)mailbox_context;
 
 			debug_printf("RTOS_CMDQU_SEND %d\n", send_to_cpu);
@@ -751,15 +780,14 @@ void prvCmdQuRunTask(ULONG thread_input)
 		}
 	}
 }
-
-void prvQueueISR(void)
+  
+VOID tx_mailbox_driver_output_ISR(VOID)
 {
-	printf("prvQueueISR\n");
+  	printf("tx_mailbox_driver_output_ISR\n");
 	unsigned char set_val;
 	unsigned char valid_val;
 	int i;
 	cmdqu_t *cmdq;
-	//BaseType_t YieldRequired = pdFALSE;
 	UINT ret;
 
 	set_val = mbox_reg->cpu_mbox_set[RECEIVE_CPU].cpu_mbox_int_int.mbox_int;
@@ -808,15 +836,13 @@ void prvQueueISR(void)
 						"cmdq->rtos_valid =%x\n",
 						rtos_cmdq.resv.valid.rtos_valid);
 
+					/* Notify thread last character transmit is
+					complete. */
 					if ((ret = tx_queue_send(&mailbox_queue, &rtos_cmdq, TX_NO_WAIT)) != TX_SUCCESS)
 					{
 						printf("rtos cmdq send failed: %d\n", ret);
 					}
-					//xQueueSendFromISR(gTaskCtx[0].queHandle,
-					// 		  &rtos_cmdq,
-					// 		  &YieldRequired);
 
-					//portYIELD_FROM_ISR(YieldRequired);
 				} else
 					printf("rtos cmdq is not valid %d, ip=%d , cmd=%d\n",
 					       rtos_cmdq.resv.valid.rtos_valid,
@@ -826,4 +852,5 @@ void prvQueueISR(void)
 		}
 	}
 }
+
 #endif
