@@ -26,7 +26,7 @@
 #endif
 
 void tx_mailbox_driver_output_ISR(void);
-DEFINE_CVI_SPINLOCK(mailbox_lock, SPIN_MBOX);
+// DEFINE_CVI_SPINLOCK(mailbox_lock, SPIN_MBOX);
 /* mailbox parameters */
 volatile struct mailbox_set_register *mbox_reg;
 volatile struct mailbox_done_register *mbox_done_reg;
@@ -516,9 +516,11 @@ UINT    status;
 void tx_mailbox_driver_output(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
+void tc_1_rpmsg_init(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
 TX_THREAD mail_thread;
+TX_THREAD rpmsg_thread;
 volatile int thread_0_counter = 10;
 volatile int thread_1_counter = 10;
 TX_BYTE_POOL byte_pool_0;
@@ -564,7 +566,12 @@ void tx_application_define(void *first_unused_memory)
 			 DEMO_STACK_SIZE, 6, 6, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
-
+/*
+	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tc_1_rpmsg_init, 99, pointer,
+			 DEMO_STACK_SIZE, 6, 6, 10,
+			 TX_AUTO_START);
+	IS_TX_ERROR(ret);
+*/
 	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
@@ -697,7 +704,10 @@ VOID tx_mailbox_driver_output(ULONG thread_input)
 			       rtos_cmdq.cmd_id, rtos_cmdq.param_ptr);
 			goto send_label;
 		default:
+
 		send_label:
+			mailbox_send(cmdq);
+#if (0)		
 			/* used to send command to linux*/
 			/* Send the character through the hardware. */
 			rtos_cmdqu_t = (cmdqu_t *)mailbox_context;
@@ -777,6 +787,7 @@ VOID tx_mailbox_driver_output(ULONG thread_input)
 				printf("No valid mailbox is available\n");
 			}
 			break;
+#endif
 		}
 	}
 }
@@ -854,3 +865,18 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 }
 
 #endif
+
+#define SH_MEM_TOTAL_SIZE (6144)
+char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
+
+void tc_1_rpmsg_init(ULONG thread_input)
+{
+    struct rpmsg_lite_instance *my_rpmsg;
+    int32_t result = 0;
+	int32_t test_counter = 0; 
+
+    for (test_counter = 0; test_counter < 2; test_counter++)
+    {
+        my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base+(2*test_counter), 0, NULL);
+	}
+}
