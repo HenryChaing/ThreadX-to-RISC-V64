@@ -1,0 +1,1 @@
+#define RL_USE_STATIC_API (1)

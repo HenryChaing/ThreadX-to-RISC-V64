@@ -72,6 +72,7 @@ set(driver_list
 	spinlock
 	gpio
 	rtos_cmdqu
+	rpmsg
 )
 else()
 set(DRIVER_BASE_DIR ${CMAKE_DRIVER_DIR}/base)

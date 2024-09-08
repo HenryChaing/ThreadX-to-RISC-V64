@@ -18,6 +18,11 @@
 /* Milk-V Duo */
 #include "milkv_duo_io.h"
 
+/* RPMsg includes*/
+#include "rpmsg_lite.h"
+#include "rpmsg_ns.h"
+#include "rpmsg_queue.h"
+
 #define __DEBUG__
 #ifdef __DEBUG__
 #define debug_printf printf
@@ -41,6 +46,8 @@ void main_cvirtos(void)
 	request_irq(MBOX_INT_C906_2ND, tx_mailbox_driver_output_ISR, 0, "mailbox", (void *)0);
 
 	tx_mailbox_driver_initialize();
+
+	tx_send_and_recieve_run_tests();
 
 	/* Enter the ThreadX kernel.  */
 	tx_kernel_enter();
@@ -516,7 +523,7 @@ UINT    status;
 void tx_mailbox_driver_output(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
-void tc_1_rpmsg_init(ULONG thread_input);
+// void tc_1_rpmsg_init(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
 TX_THREAD mail_thread;
@@ -613,6 +620,7 @@ void thread_1_entry(ULONG thread_input)
 
 
 /*
+ *
  * mailbox
  *
  */
@@ -866,17 +874,237 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 
 #endif
 
+
+/*
+ *
+ * rpmsg init
+ *
+ */
+
 #define SH_MEM_TOTAL_SIZE (6144)
 char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
 
-void tc_1_rpmsg_init(ULONG thread_input)
+VOID tx_rpmsg_driver_initialize (VOID)
 {
     struct rpmsg_lite_instance *my_rpmsg;
-    int32_t result = 0;
-	int32_t test_counter = 0; 
+    struct rpmsg_lite_instance rpmsg_ctxt;
+    int32_t result, test_counter = 0;
 
-    for (test_counter = 0; test_counter < 2; test_counter++)
+	my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base, 0, RL_NO_FLAGS, &rpmsg_ctxt);
+
+	printf("common_main 885\n");
+
+	/* incomming interrupt changes state to state_created_channel */
+	rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
+	printf("common_main 895\n");
+	result = rpmsg_lite_deinit(my_rpmsg);
+	printf("common_main 897\n");
+}
+
+
+
+
+/*
+ *
+ * rpmsg send & recieve
+ *
+ */
+
+#define TC_TRANSFER_COUNT 10
+#define DATA_LEN 45
+#define TC_LOCAL_EPT_ADDR (30)
+#define TC_REMOTE_EPT_ADDR (40)
+#define RPMSG_LITE_NS_ANNOUNCE_STRING "rpmsg-test-channel"
+
+struct rpmsg_lite_endpoint *volatile my_ept = NULL;
+struct rpmsg_lite_ept_static_context my_ept_ctxt;
+
+rpmsg_queue_handle my_queue = NULL;
+rpmsg_static_queue_ctxt my_queue_ctxt = {0};
+uint8_t my_rpmsg_queue_storage[RL_ENV_QUEUE_STATIC_STORAGE_SIZE] = {0};
+struct rpmsg_lite_instance *volatile my_rpmsg = NULL;
+struct rpmsg_lite_instance rpmsg_ctxt = {0};
+rpmsg_ns_handle ns_handle = NULL;
+rpmsg_ns_static_context my_ns_ctxt = {0};
+
+static void app_nameservice_isr_cb(uint32_t new_ept, const char *new_ept_name, uint32_t flags, void *user_data)
+{
+}
+
+// utility: initialize rpmsg and environment
+// and wait for default channel
+int32_t ts_init_rpmsg(void)
+{
+    env_init();
+    my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base, 0, RL_NO_FLAGS, &rpmsg_ctxt);
+
+    rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
+    
+    /* wait for a while to allow the primary side to bind_ns and register the NS callback */
+    env_sleep_msec(200);
+
+    ns_handle = rpmsg_ns_bind(my_rpmsg, app_nameservice_isr_cb, ((void *)0), &my_ns_ctxt);
+    return 0;
+}
+
+// utility: deinitialize rpmsg and environment
+int32_t ts_deinit_rpmsg(void)
+{
+    rpmsg_ns_unbind(my_rpmsg, ns_handle);
+    ns_handle = NULL;
+    env_memset(&my_ns_ctxt, 0, sizeof(rpmsg_ns_static_context));
+    rpmsg_lite_deinit(my_rpmsg);
+    my_rpmsg = NULL;
+    env_memset(&rpmsg_ctxt, 0, sizeof(struct rpmsg_lite_instance));
+    return 0;
+}
+
+// utility: create number of epts
+int32_t ts_create_epts(rpmsg_queue_handle queues[], uint8_t queues_storage[], rpmsg_static_queue_ctxt queues_ctxt[], struct rpmsg_lite_endpoint *volatile epts[], struct rpmsg_lite_ept_static_context epts_ctxt[], int32_t count, int32_t init_addr)
+{
+
+    // invalid params for rpmsg_queue_create
+
+    for (int32_t i = 0; i < count; i++)
     {
-        my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base+(2*test_counter), 0, NULL);
-	}
+        queues[i] = rpmsg_queue_create(my_rpmsg, &queues_storage[i], &queues_ctxt[i]);
+        epts[i] = rpmsg_lite_create_ept(my_rpmsg, init_addr + i, rpmsg_queue_rx_cb, queues[i], &epts_ctxt[i]);
+    }
+    return 0;
+}
+
+// utility: destroy number of epts
+int32_t ts_destroy_epts(rpmsg_queue_handle queues[], struct rpmsg_lite_endpoint *volatile epts[], int32_t count)
+{
+    // invalid params for rpmsg_queue_destroy
+
+    for (int32_t i = 0; i < count; i++)
+    {
+        rpmsg_queue_destroy(my_rpmsg, queues[i]);
+        rpmsg_lite_destroy_ept(my_rpmsg, epts[i]);
+    }
+    return 0;
+}
+
+int32_t pattern_cmp(char *buffer, char pattern, int32_t len)
+{
+    for (int32_t i = 0; i < len; i++)
+        if (buffer[i] != pattern)
+            return -1;
+    return 0;
+}
+
+/******************************************************************************
+ * Test case 1
+ * - verify simple transport between default epts of default channels
+ * - verify simple nocopy transport between default epts of default channels
+ * - verify simple transport between custom created epts of default channels
+ * - verify simple nocopy transport between custom created epts of default channels
+ *****************************************************************************/
+void tc_1_receive_send(void)
+{
+    int32_t result = 0;
+    char data[DATA_LEN] = {0};
+    void *data_addr = NULL;
+    uint32_t src;
+    uint32_t len;
+
+    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
+    {
+        result = rpmsg_queue_recv(my_rpmsg, my_queue, &src, data, DATA_LEN, &len, RL_BLOCK);
+        result = pattern_cmp(data, i, DATA_LEN);
+    }
+
+    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
+    {
+        result = rpmsg_queue_recv_nocopy(my_rpmsg, my_queue, &src, (char **)&data_addr, &len, RL_BLOCK);
+        result = pattern_cmp(data_addr, i, DATA_LEN);
+        result = rpmsg_queue_nocopy_free(my_rpmsg, data_addr);
+    }
+
+    /* for invalid length remote receive */
+    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
+
+    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
+    {
+        env_memset(data, i, DATA_LEN);
+        result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
+    }
+
+    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
+    {
+        env_memset(data, i, DATA_LEN);
+        result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
+    }
+
+    // send message to non-existing endpoint address, message will be dropped on the receiver side
+    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR + 1, data, DATA_LEN, RL_BLOCK);
+
+    // send - invalid rpmsg_lite_dev
+    result = rpmsg_lite_send(RL_NULL, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
+
+    // invalid params for send
+    result = rpmsg_lite_send(my_rpmsg, NULL, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
+    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, NULL, DATA_LEN, RL_BLOCK);
+    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, 0xFFFFFFFF, RL_BLOCK);
+
+    // invalid params for receive
+    result = rpmsg_queue_recv(RL_NULL, my_queue, &src, data, DATA_LEN, &len, RL_BLOCK);
+    result = rpmsg_queue_recv(my_rpmsg, RL_NULL, &src, data, DATA_LEN, &len, RL_BLOCK);
+    result = rpmsg_queue_recv(my_rpmsg, my_queue, &src, RL_NULL, DATA_LEN, &len, RL_BLOCK);
+    result = rpmsg_queue_recv(my_rpmsg, my_queue, &src, data, 0, &len, RL_BLOCK);
+
+    // invalid params for receive_nocopy
+    result = rpmsg_queue_recv_nocopy(RL_NULL, my_queue, &src, (char **)&data_addr, &len, RL_BLOCK);
+    result = rpmsg_queue_recv_nocopy(my_rpmsg, RL_NULL, &src, (char **)&data_addr, &len, RL_BLOCK);
+    result = rpmsg_queue_recv_nocopy(my_rpmsg, my_queue, &src, RL_NULL, &len, RL_BLOCK);
+
+    // invalid params for receive_nocopy_free
+    result = rpmsg_queue_nocopy_free(RL_NULL, data_addr);
+    result = rpmsg_queue_nocopy_free(my_rpmsg, RL_NULL);
+
+    // invalid params for rpmsg_lite_release_rx_buffer - this should not be used in an app and rpmsg_queue_nocopy_free should be used instead
+    result = rpmsg_lite_release_rx_buffer(RL_NULL, data_addr);
+    result = rpmsg_lite_release_rx_buffer(my_rpmsg, RL_NULL);
+}
+
+VOID tx_send_and_recieve_run_tests(VOID)
+{
+    int32_t result = 0;
+    struct rpmsg_lite_endpoint fake_ept = {0};
+    struct rpmsg_lite_instance fake_rpmsg = {0};
+    uint32_t bufer_size = 1;
+
+	printf("common_main 1078\n");
+
+    // call send before rpmsg_lite is initialized
+    result = rpmsg_lite_send(&fake_rpmsg, &fake_ept, TC_REMOTE_EPT_ADDR, (char*)0x12345678, DATA_LEN, RL_BLOCK);
+    result = rpmsg_lite_send_nocopy(&fake_rpmsg, &fake_ept, TC_REMOTE_EPT_ADDR, (char*)0x12345678, DATA_LEN);
+
+	printf("common_main 1084\n");
+
+    result = ts_init_rpmsg();
+    result = ts_create_epts(&my_queue, &my_rpmsg_queue_storage[0], &my_queue_ctxt, &my_ept, &my_ept_ctxt, 1, TC_LOCAL_EPT_ADDR);
+
+	printf("common_main 1089\n");
+
+    if (!result)
+    {
+        tc_1_receive_send();
+    }
+    ts_destroy_epts(&my_queue, &my_ept, 1);
+
+	printf("common_main 1097\n");
+
+    my_queue = NULL;
+    env_memset(&my_rpmsg_queue_storage, 0, RL_ENV_QUEUE_STATIC_STORAGE_SIZE);
+    env_memset(&my_queue_ctxt, 0, sizeof(rpmsg_static_queue_ctxt));
+
+	printf("common_main 1103\n");
+
+    my_ept = NULL;
+    env_memset(&my_ept_ctxt, 0, sizeof(struct rpmsg_lite_ept_static_context));
+    result = ts_deinit_rpmsg();
+
+	printf("common_main 1109\n");
 }
