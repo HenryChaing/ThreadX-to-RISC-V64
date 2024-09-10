@@ -65,4 +65,4 @@ ThreadX repo：https://github.com/eclipse-threadx/threadx/
 
 Milk-V Duo repo： https://github.com/milkv-duo/duo-buildroot-sdk/
 
-Milk-V Duo 在线Wiki：https://milkv.io/zh/docs/duo/overview
+Milk-V Duo online Wiki：https://milkv.io/zh/docs/duo/overview
