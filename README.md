@@ -10,7 +10,7 @@
 #FREERTOS_PATH="$TOP_DIR"/freertos # 修改此项
 FREERTOS_PATH="$TOP_DIR"/threadx
 ```
-运行Milk-V Duo官方的一件编译脚本，-j[x]为启用x核编译（详细配置见Milk-V Duo官方仓库README或官方Wiki）
+运行Milk-V Duo官方的一键编译脚本，-j[x]为启用x核编译（详细配置见Milk-V Duo官方仓库README或官方Wiki）
 ```
 # ./build.sh milkv-duo -j6
 ```
