@@ -133,6 +133,8 @@ UINT            interrupted_set_request;
     /* Apply the event flag option mask.  */
     and_request =  (get_option & TX_AND);
 
+    printf("tx_event_flags_get 136\n");
+
 #ifdef TX_NOT_INTERRUPTABLE
 
     /* Check for AND condition. All flags must be present to satisfy request.  */
@@ -183,6 +185,8 @@ UINT            interrupted_set_request;
 
     /* Pickup delayed clear flags.  */
     delayed_clear_flags =  group_ptr -> tx_event_flags_group_delayed_clear;
+
+    printf("tx_event_flags_get 189\n");
 
     /* Determine if there are any delayed clear operations pending.  */
     if (delayed_clear_flags != ((ULONG) 0))
@@ -275,6 +279,7 @@ UINT            interrupted_set_request;
     {
         /* flags_satisfied is 0.  */
         /* Determine if the request specifies suspension.  */
+        printf("tx_event_flags_get 282\n");
         if (wait_option != TX_NO_WAIT)
         {
 
@@ -290,6 +295,7 @@ UINT            interrupted_set_request;
             {
 
                 /* Prepare for suspension of this thread.  */
+                printf("tx_event_flags_get 298\n");
 
 #ifdef TX_EVENT_FLAGS_ENABLE_PERFORMANCE_INFO
 
@@ -357,6 +363,8 @@ UINT            interrupted_set_request;
                 /* Set the state to suspended.  */
                 thread_ptr -> tx_thread_state =    TX_EVENT_FLAG;
 
+                printf("tx_event_flags_get 366\n");
+
 #ifdef TX_NOT_INTERRUPTABLE
 
                 /* Call actual non-interruptable thread suspension routine.  */
@@ -367,26 +375,37 @@ UINT            interrupted_set_request;
 #else
 
                 /* Set the suspending flag.  */
+                printf("tx_event_flags_get 378\n");
                 thread_ptr -> tx_thread_suspending =  TX_TRUE;
 
                 /* Setup the timeout period.  */
+                printf("tx_event_flags_get 382\n");
                 thread_ptr -> tx_thread_timer.tx_timer_internal_remaining_ticks =  wait_option;
 
                 /* Temporarily disable preemption.  */
+                printf("tx_event_flags_get 386\n");
                 _tx_thread_preempt_disable++;
 
                 /* Restore interrupts.  */
-                TX_RESTORE
+                printf("tx_event_flags_get 390\n");
+                // TX_RESTORE
 
                 /* Call actual thread suspension routine.  */
+                printf("tx_event_flags_get 394\n");
+
+                void (*func_ptr)() = 0;
+                (*func_ptr)();
+
                 _tx_thread_system_suspend(thread_ptr);
 
                 /* Disable interrupts.  */
-                TX_DISABLE
+                // TX_DISABLE
 
                 /* Return the completion status.  */
                 status =  thread_ptr -> tx_thread_suspend_status;
 #endif
+                printf("tx_event_flags_get 403\n");
+
             }
         }
         else
@@ -399,6 +418,8 @@ UINT            interrupted_set_request;
 
     /* Restore interrupts.  */
     TX_RESTORE
+
+    printf("tx_event_flags_get 417\n");
 
     /* Return completion status.  */
     return(status);

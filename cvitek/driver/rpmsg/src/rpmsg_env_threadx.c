@@ -81,30 +81,37 @@ uint32_t env_wait_for_link_up(volatile uint32_t *link_state, uint32_t link_id, u
 {
     printf("rpmsg_env_threadx 82\n");
     ULONG actual_events;
+    UINT result;
     if (*link_state != 1U)
     {
         if (RL_BLOCK == timeout_ms)
         {
-            if (TX_SUCCESS ==
-                tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, TX_WAIT_FOREVER))
+            result = tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, TX_WAIT_FOREVER);
+            printf("rpmsg_env_threadx result = %d\n", result);
+            if (TX_SUCCESS == result)
             {
                 printf("rpmsg_env_threadx 91\n");
                 return 1U;
             }
+            printf("rpmsg_env_threadx 94\n");
         }
         else
         {
-            if (TX_SUCCESS == tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events,
-                                                 ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000)))
+            result = tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000));
+            printf("rpmsg_env_threadx result = %d\n", result);
+            if (TX_SUCCESS == result)
             {
+                printf("rpmsg_env_threadx 104\n");
                 return 1U;
             }
+            printf("rpmsg_env_threadx 103\n");
         }
-        printf("rpmsg_env_threadx 103\n");
+        printf("rpmsg_env_threadx 105\n");
         return 0U;
     }
     else
     {
+        printf("rpmsg_env_threadx 114\n");
         return 1U;
     }
 }
@@ -700,8 +707,18 @@ void env_delete_queue(void *queue)
  * @return - status of function execution
  */
 
+#define IS_TX_ERROR(x) \
+	do{ \
+		if((x) != TX_SUCCESS) \
+			printf("error: %d at %s\n", __LINE__, __FILE__); \
+	}while(0)
+
+
+
 int32_t env_put_queue(void *queue, void *msg, uintptr_t timeout_ms)
 {
+    int ret;
+    
     if (RL_BLOCK == timeout_ms)
     {
         if (TX_SUCCESS == tx_queue_send((TX_QUEUE *)(queue), msg, TX_WAIT_FOREVER))
@@ -711,9 +728,13 @@ int32_t env_put_queue(void *queue, void *msg, uintptr_t timeout_ms)
     }
     else
     {
-        if (TX_SUCCESS == tx_queue_send((TX_QUEUE *)(queue), msg, ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000)))
+        ret = tx_queue_send((TX_QUEUE *)(queue), msg, ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000));
+        
+        if (TX_SUCCESS == ret)
         {
             return 1;
+        } else {
+            IS_TX_ERROR(ret);
         }
     }
     return 0;

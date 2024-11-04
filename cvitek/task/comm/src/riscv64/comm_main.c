@@ -22,6 +22,7 @@
 #include "rpmsg_lite.h"
 #include "rpmsg_ns.h"
 #include "rpmsg_queue.h"
+#include "rpmsg_platform.h"
 
 #define __DEBUG__
 #ifdef __DEBUG__
@@ -47,7 +48,7 @@ void main_cvirtos(void)
 
 	tx_mailbox_driver_initialize();
 
-	tx_send_and_recieve_run_tests();
+	// tx_send_and_recieve_run_tests();
 
 	/* Enter the ThreadX kernel.  */
 	tx_kernel_enter();
@@ -69,7 +70,7 @@ void main_cvirtos(void)
 #define IS_TX_ERROR(x) \
 	do{ \
 		if((x) != TX_SUCCESS) \
-			printf("error: %d at %s\n", __LINE__, __FILE__); \
+			printf("error: %d at %s\n", __LINE__, __FILE__); printf("error = %d\n",x);\
 	}while(0)
 
 #define DEMO_STACK_SIZE 1024
@@ -523,6 +524,7 @@ UINT    status;
 void tx_mailbox_driver_output(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
+void tx_send_and_recieve_run_tests(ULONG thread_input);
 // void tc_1_rpmsg_init(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
@@ -570,15 +572,25 @@ void tx_application_define(void *first_unused_memory)
 	IS_TX_ERROR(ret);
 
 	ret = tx_thread_create(&thread_1, "thread 1", thread_1_entry, 99, pointer,
-			 DEMO_STACK_SIZE, 6, 6, 10,
+			 DEMO_STACK_SIZE , 6, 6, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
+
 /*
 	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tc_1_rpmsg_init, 99, pointer,
 			 DEMO_STACK_SIZE, 6, 6, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 */
+
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE , TX_NO_WAIT);
+	IS_TX_ERROR(ret);
+
+	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tx_send_and_recieve_run_tests, 0, pointer,
+			 DEMO_STACK_SIZE , 7, 7, 10,
+			 TX_AUTO_START);
+	IS_TX_ERROR(ret);
+
 	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
@@ -870,6 +882,9 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 			}
 		}
 	}
+
+	rpmsg_handler();
+
 }
 
 #endif
@@ -882,7 +897,9 @@ VOID tx_mailbox_driver_output_ISR(VOID)
  */
 
 #define SH_MEM_TOTAL_SIZE (6144)
-char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
+// char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
+
+char *rpmsg_lite_base = 0x8fff0000;
 
 VOID tx_rpmsg_driver_initialize (VOID)
 {
@@ -937,8 +954,8 @@ int32_t ts_init_rpmsg(void)
 {
     env_init();
     my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base, 0, RL_NO_FLAGS, &rpmsg_ctxt);
-
-    rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
+	
+	rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
     
     /* wait for a while to allow the primary side to bind_ns and register the NS callback */
     env_sleep_msec(200);
@@ -1068,9 +1085,13 @@ void tc_1_receive_send(void)
     result = rpmsg_lite_release_rx_buffer(my_rpmsg, RL_NULL);
 }
 
-VOID tx_send_and_recieve_run_tests(VOID)
+// VOID tx_send_and_recieve_run_tests(VOID)
+void tx_send_and_recieve_run_tests(ULONG thread_input)
 {
-    int32_t result = 0;
+    /* Remove compiler warning about unused parameter. */
+	(void)thread_input;
+	
+	int32_t result = 0;
     struct rpmsg_lite_endpoint fake_ept = {0};
     struct rpmsg_lite_instance fake_rpmsg = {0};
     uint32_t bufer_size = 1;
@@ -1092,6 +1113,7 @@ VOID tx_send_and_recieve_run_tests(VOID)
     {
         tc_1_receive_send();
     }
+#if (0)
     ts_destroy_epts(&my_queue, &my_ept, 1);
 
 	printf("common_main 1097\n");
@@ -1105,6 +1127,6 @@ VOID tx_send_and_recieve_run_tests(VOID)
     my_ept = NULL;
     env_memset(&my_ept_ctxt, 0, sizeof(struct rpmsg_lite_ept_static_context));
     result = ts_deinit_rpmsg();
-
+#endif
 	printf("common_main 1109\n");
 }

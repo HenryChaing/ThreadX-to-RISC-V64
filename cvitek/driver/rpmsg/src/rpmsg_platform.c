@@ -108,6 +108,9 @@ void platform_notify(uint32_t vector_id)
 void rpmsg_handler(void)
 {
 
+    env_isr(0);
+    printf(" rpmsg_platform 112\n");
+
 #if (0)
     uint32_t msg, channel;
 

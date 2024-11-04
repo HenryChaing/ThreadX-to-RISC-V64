@@ -353,6 +353,9 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
 
     if (vq->vq_available_idx == vq->vq_ring.avail->idx)
     {
+        printf("virtqueue vq->vq_available_idx %d\n", vq->vq_available_idx);
+        printf("virtqueue vq->vq_ring.avail->idx %d\n", vq->vq_ring.avail->idx);
+        printf("virtqueue 356\n");
         return (VQ_NULL);
     }
 
@@ -370,6 +373,8 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
     *len = vq->vq_ring.desc[*avail_idx].len;
 
     VQUEUE_IDLE(vq, avail_read);
+
+    printf("virtqueue 375\n");
 
     return (buffer);
 }
@@ -616,6 +621,8 @@ static void vq_ring_update_avail(struct virtqueue *vq, uint16_t desc_idx)
 
     env_wmb();
 
+    printf("virtqueue 624\n");
+
     vq->vq_ring.avail->idx++;
 
     /* Keep pending count until virtqueue_notify(). */
@@ -698,6 +705,7 @@ void virtqueue_notification(struct virtqueue *vq)
     {
         if (vq->callback_fc != VQ_NULL)
         {
+            printf("virtqueue 701\n");
             vq->callback_fc(vq);
         }
     }

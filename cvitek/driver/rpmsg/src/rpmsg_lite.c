@@ -112,6 +112,8 @@ static struct llist *rpmsg_lite_get_endpoint_from_addr(struct rpmsg_lite_instanc
  */
 static void rpmsg_lite_rx_callback(struct virtqueue *vq)
 {
+    printf("rpmsg_lite 115\n");
+    
     struct rpmsg_std_msg *rpmsg_msg;
     uint32_t len;
     uint16_t idx;
@@ -119,11 +121,16 @@ static void rpmsg_lite_rx_callback(struct virtqueue *vq)
     int32_t cb_ret;
     struct llist *node;
     struct rpmsg_lite_instance *rpmsg_lite_dev = (struct rpmsg_lite_instance *)vq->priv;
+
+    printf("rpmsg_lite 125\n");
+
 #if defined(RL_ALLOW_CONSUMED_BUFFERS_NOTIFICATION) && (RL_ALLOW_CONSUMED_BUFFERS_NOTIFICATION == 1)
     uint32_t rx_freed = RL_FALSE;
 #endif
 
     RL_ASSERT(rpmsg_lite_dev != RL_NULL);
+
+    printf("rpmsg_lite 133\n");
 
 #if defined(RL_USE_ENVIRONMENT_CONTEXT) && (RL_USE_ENVIRONMENT_CONTEXT == 1)
     env_lock_mutex(rpmsg_lite_dev->lock);
@@ -134,21 +141,26 @@ static void rpmsg_lite_rx_callback(struct virtqueue *vq)
 
     while (rpmsg_msg != RL_NULL)
     {
+        printf("rpmsg_lite 144\n");
         node = rpmsg_lite_get_endpoint_from_addr(rpmsg_lite_dev, rpmsg_msg->hdr.dst);
+        printf("rpmsg_lite 146\n");
 
         cb_ret = RL_RELEASE;
         if (node != RL_NULL)
         {
+            printf("rpmsg_lite 151\n");
             ept    = (struct rpmsg_lite_endpoint *)node->data;
             cb_ret = ept->rx_cb(rpmsg_msg->data, rpmsg_msg->hdr.len, rpmsg_msg->hdr.src, ept->rx_cb_data);
         }
 
         if (cb_ret == RL_HOLD)
         {
+            printf("rpmsg_lite 158\n");
             rpmsg_msg->hdr.reserved.idx = idx;
         }
         else
         {
+            printf("rpmsg_lite 163\n");
             rpmsg_lite_dev->vq_ops->vq_rx_free(rpmsg_lite_dev->rvq, rpmsg_msg, len, idx);
 #if defined(RL_ALLOW_CONSUMED_BUFFERS_NOTIFICATION) && (RL_ALLOW_CONSUMED_BUFFERS_NOTIFICATION == 1)
             rx_freed = RL_TRUE;
@@ -158,15 +170,18 @@ static void rpmsg_lite_rx_callback(struct virtqueue *vq)
 #if defined(RL_ALLOW_CONSUMED_BUFFERS_NOTIFICATION) && (RL_ALLOW_CONSUMED_BUFFERS_NOTIFICATION == 1)
         if ((rpmsg_msg == RL_NULL) && (rx_freed == RL_TRUE))
         {
+            printf("rpmsg_lite 170\n");
             /* Let the remote device know that some buffers have been freed */
             virtqueue_kick(rpmsg_lite_dev->rvq);
         }
+        printf("rpmsg_lite 173\n");
 #endif
     }
 
 #if defined(RL_USE_ENVIRONMENT_CONTEXT) && (RL_USE_ENVIRONMENT_CONTEXT == 1)
     env_unlock_mutex(rpmsg_lite_dev->lock);
 #endif
+    printf("rpmsg_lite 180\n");
 }
 
 /*!
