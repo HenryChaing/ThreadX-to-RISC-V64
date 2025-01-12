@@ -29,6 +29,7 @@ void mailbox_send(cmdqu_t *cmdq){
 	/* Send the character through the hardware. */
 	rtos_cmdqu_t = (cmdqu_t *)mailbox_context;
 
+/*
 	debug_printf("RTOS_CMDQU_SEND %d\n", send_to_cpu);
 	debug_printf("ip_id=%d cmd_id=%d param_ptr=%x\n",
 				cmdq->ip_id, cmdq->cmd_id,
@@ -39,7 +40,7 @@ void mailbox_send(cmdqu_t *cmdq){
 	debug_printf("cmdq->cmd_id = %d\n", cmdq->cmd_id);
 	debug_printf("cmdq->block = %d\n", cmdq->block);
 	debug_printf("cmdq->para_ptr = %x\n", cmdq->param_ptr);
-
+*/
 	drv_spin_lock_irqsave(&mailbox_lock, flags);
 	if (flags == MAILBOX_LOCK_FAILED) {
 		printf("[%s][%d] drv_spin_lock_irqsave failed! ip_id = %d , cmd_id = %d\n",
@@ -47,6 +48,12 @@ void mailbox_send(cmdqu_t *cmdq){
 		return;
 	}
 
+	// trigger mailbox valid to rtos
+	mbox_reg->cpu_mbox_en[send_to_cpu]
+		.mbox_info |= (1 << 0);
+	mbox_reg->mbox_set.mbox_set =
+		(1 << 0);
+/*
 	for (valid = 0; valid < MAILBOX_MAX_NUM; valid++) {
 		if (rtos_cmdqu_t->resv.valid.linux_valid == 0 &&
 			rtos_cmdqu_t->resv.valid.rtos_valid == 0) {
@@ -99,6 +106,8 @@ void mailbox_send(cmdqu_t *cmdq){
 		}
 		rtos_cmdqu_t++;
 	}
+*/
+
 	drv_spin_unlock_irqrestore(&mailbox_lock, flags);
 	if (valid >= MAILBOX_MAX_NUM) {
 		printf("No valid mailbox is available\n");

@@ -525,7 +525,7 @@ void tx_mailbox_driver_output(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
 void tx_send_and_recieve_run_tests(ULONG thread_input);
-// void tc_1_rpmsg_init(ULONG thread_input);
+void tc_1_rpmsg_init(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
 TX_THREAD mail_thread;
@@ -577,12 +577,14 @@ void tx_application_define(void *first_unused_memory)
 	IS_TX_ERROR(ret);
 
 /*
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE , TX_NO_WAIT);
+	IS_TX_ERROR(ret);
+
 	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tc_1_rpmsg_init, 99, pointer,
 			 DEMO_STACK_SIZE, 6, 6, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 */
-
 	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE , TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
@@ -724,10 +726,13 @@ VOID tx_mailbox_driver_output(ULONG thread_input)
 			       rtos_cmdq.cmd_id, rtos_cmdq.param_ptr);
 			goto send_label;
 		default:
-
+			goto send_label;
 		send_label:
+			printf("recv cmd(%d) from C906B...send [0x%x] to C906B\n",
+			       rtos_cmdq.cmd_id, rtos_cmdq.param_ptr);
+#if (0)				
 			mailbox_send(cmdq);
-#if (0)		
+	
 			/* used to send command to linux*/
 			/* Send the character through the hardware. */
 			rtos_cmdqu_t = (cmdqu_t *)mailbox_context;
@@ -831,6 +836,10 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 				cmdqu_t rtos_cmdq;
 				cmdq = (cmdqu_t *)(mailbox_context) + i;
 
+				debug_printf("set_val =%d\n",
+					     set_val);
+				debug_printf("valid_val =%d\n",
+					     valid_val);
 				debug_printf("mailbox_context =%x\n",
 					     mailbox_context);
 				debug_printf("sizeof mailbox_context =%x\n",
@@ -899,7 +908,7 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 #define SH_MEM_TOTAL_SIZE (6144)
 // char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
 
-char *rpmsg_lite_base = 0x8fff0000;
+char *rpmsg_lite_base = 0x8fd00000;
 
 VOID tx_rpmsg_driver_initialize (VOID)
 {
@@ -954,14 +963,16 @@ int32_t ts_init_rpmsg(void)
 {
     env_init();
     my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base, 0, RL_NO_FLAGS, &rpmsg_ctxt);
-	
+
 	rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
     
     /* wait for a while to allow the primary side to bind_ns and register the NS callback */
-    env_sleep_msec(200);
+    for (int i = 0; i < 10 ;i++){
+		env_sleep_msec(200);
+	}		
 
-    ns_handle = rpmsg_ns_bind(my_rpmsg, app_nameservice_isr_cb, ((void *)0), &my_ns_ctxt);
-    return 0;
+    ns_handle = rpmsg_ns_bind(my_rpmsg, app_nameservice_isr_cb, ((void *)0), &my_ns_ctxt);  
+	return 0;
 }
 
 // utility: deinitialize rpmsg and environment
@@ -1025,6 +1036,8 @@ void tc_1_receive_send(void)
     void *data_addr = NULL;
     uint32_t src;
     uint32_t len;
+
+	printf("comm_main line 1040\n");
 
     for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
     {
@@ -1097,23 +1110,36 @@ void tx_send_and_recieve_run_tests(ULONG thread_input)
     uint32_t bufer_size = 1;
 
 	printf("common_main 1078\n");
-
+/*
     // call send before rpmsg_lite is initialized
     result = rpmsg_lite_send(&fake_rpmsg, &fake_ept, TC_REMOTE_EPT_ADDR, (char*)0x12345678, DATA_LEN, RL_BLOCK);
     result = rpmsg_lite_send_nocopy(&fake_rpmsg, &fake_ept, TC_REMOTE_EPT_ADDR, (char*)0x12345678, DATA_LEN);
-
+*/
 	printf("common_main 1084\n");
 
     result = ts_init_rpmsg();
-    result = ts_create_epts(&my_queue, &my_rpmsg_queue_storage[0], &my_queue_ctxt, &my_ept, &my_ept_ctxt, 1, TC_LOCAL_EPT_ADDR);
+   
+	result = ts_create_epts(&my_queue, &my_rpmsg_queue_storage[0], &my_queue_ctxt, &my_ept, &my_ept_ctxt, 1, TC_LOCAL_EPT_ADDR);
+	
 
 	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+	printf("common_main 1089\n");
+
+	result = rpmsg_ns_announce(my_rpmsg, my_ept, RPMSG_LITE_NS_ANNOUNCE_STRING, (uint32_t)RL_NS_CREATE);
+ #if (0)
+	env_sleep_msec(10000);
 
     if (!result)
     {
         tc_1_receive_send();
     }
-#if (0)
+
     ts_destroy_epts(&my_queue, &my_ept, 1);
 
 	printf("common_main 1097\n");
@@ -1127,6 +1153,7 @@ void tx_send_and_recieve_run_tests(ULONG thread_input)
     my_ept = NULL;
     env_memset(&my_ept_ctxt, 0, sizeof(struct rpmsg_lite_ept_static_context));
     result = ts_deinit_rpmsg();
+
 #endif
 	printf("common_main 1109\n");
 }

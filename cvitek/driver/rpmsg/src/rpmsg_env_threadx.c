@@ -84,7 +84,7 @@ uint32_t env_wait_for_link_up(volatile uint32_t *link_state, uint32_t link_id, u
     UINT result;
     if (*link_state != 1U)
     {
-        if (RL_BLOCK == timeout_ms)
+        if ( /*RL_BLOCK == timeout_ms*/ true)
         {
             result = tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, TX_WAIT_FOREVER);
             printf("rpmsg_env_threadx result = %d\n", result);

@@ -97,6 +97,10 @@ void platform_notify(uint32_t vector_id)
     cmdq.cmd_id = CMD_DUO_LED;
     cmdq.resv.mstime = 100;
     cmdq.param_ptr = DUO_LED_ON;
+    cmdq.block = 0;
+    cmdq.resv.valid.linux_valid = 0;
+    cmdq.resv.valid.rtos_valid = 0;
+    printf("---------------------------- RTOS SEND MESSAGE --------------------------------------------------------\n");
     mailbox_send(&cmdq);
 
     env_unlock_mutex(platform_lock);
@@ -108,6 +112,7 @@ void platform_notify(uint32_t vector_id)
 void rpmsg_handler(void)
 {
 
+    // env_tx_callback(0);
     env_isr(0);
     printf(" rpmsg_platform 112\n");
 

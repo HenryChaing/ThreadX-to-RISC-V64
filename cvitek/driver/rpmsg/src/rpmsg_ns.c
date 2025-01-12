@@ -170,6 +170,8 @@ int32_t rpmsg_ns_announce(struct rpmsg_lite_instance *rpmsg_lite_dev,
 {
     struct rpmsg_ns_msg ns_msg;
 
+printf("------------------------ rpmsg_ns line 173 --------------------\n");
+
     if (ept_name == RL_NULL)
     {
         return RL_ERR_PARAM;
@@ -179,6 +181,8 @@ int32_t rpmsg_ns_announce(struct rpmsg_lite_instance *rpmsg_lite_dev,
     {
         return RL_ERR_PARAM;
     }
+
+printf("------------------------ rpmsg_ns line 185 --------------------\n");
 
     env_strncpy(ns_msg.name, ept_name, RL_NS_NAME_SIZE);
     ns_msg.flags = flags;

@@ -395,6 +395,7 @@ static const struct virtqueue_ops remote_vq_ops = {
 /* helper function for virtqueue notification */
 static void virtqueue_notify(struct virtqueue *vq)
 {
+    printf("------------------------ virtqueue_notify --------------------\n");
 #if defined(RL_USE_ENVIRONMENT_CONTEXT) && (RL_USE_ENVIRONMENT_CONTEXT == 1)
     struct rpmsg_lite_instance *inst = vq->priv;
     platform_notify(inst->env ? env_get_platform_context(inst->env) : RL_NULL, vq->vq_queue_index);
@@ -578,6 +579,18 @@ uint32_t rpmsg_lite_wait_for_link_up(struct rpmsg_lite_instance *rpmsg_lite_dev,
     return env_wait_for_link_up(&rpmsg_lite_dev->link_state, rpmsg_lite_dev->link_id, timeout);
 }
 
+struct message_header {
+
+    uint32_t dst;
+    uint32_t src;
+    uint32_t size;
+    uint32_t flags;
+
+};
+
+struct message_header message_header_instance;
+struct rpmsg_std_msg rpmsg_std_msg_instance;
+
 /*!
  * @brief
  * Internal function to format a RPMsg compatible
@@ -594,7 +607,7 @@ uint32_t rpmsg_lite_wait_for_link_up(struct rpmsg_lite_instance *rpmsg_lite_dev,
  * @return  Status of function execution, RL_SUCCESS on success
  *
  */
-static int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_dev,
+int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_dev,
                                          uint32_t src,
                                          uint32_t dst,
                                          char *data,
@@ -623,10 +636,25 @@ static int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_
         return RL_NOT_READY;
     }
 
+    printf("------------------------ rpmsg_lite 627 --------------------\n");
+
+    // printf("(dst, src, len, flags) : (%d)\n", message_header_instance.dst + message_header_instance.src);
+
+    env_sleep_msec(10000);
+
+    // printf("(dst, src, len, flags) : (%d)\n", message_header_instance.src & 0xFFFFU);
+
     /* Lock the device to enable exclusive access to virtqueues */
+    printf("------------------------ rpmsg_lite 632 --------------------\n");
     env_lock_mutex(rpmsg_lite_dev->lock);
     /* Get rpmsg buffer for sending message. */
+    printf("------------------------ rpmsg_lite 635 --------------------\n");
+
     buffer = rpmsg_lite_dev->vq_ops->vq_tx_alloc(rpmsg_lite_dev->tvq, &buff_len, &idx);
+
+    printf("( buff_len, idx , pointer) : ( %d, %d, %p )\n", buff_len, idx, buffer);
+   
+    printf("------------------------ rpmsg_lite 637 --------------------\n");
     env_unlock_mutex(rpmsg_lite_dev->lock);
 
     if ((buffer == RL_NULL) && (timeout == RL_FALSE))
@@ -634,6 +662,8 @@ static int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_
         return RL_ERR_NO_MEM;
     }
 
+    printf("------------------------ rpmsg_lite 645 --------------------\n");
+#if (0)
     while (buffer == RL_NULL)
     {
         env_sleep_msec(RL_MS_PER_INTERVAL);
@@ -646,25 +676,40 @@ static int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_
             return RL_ERR_NO_MEM;
         }
     }
+#endif
+    printf("------------------------ rpmsg_lite 661 --------------------\n");
+
+    printf("------------------------ rpmsg_lite 654 --------------------\n");
 
     rpmsg_msg = (struct rpmsg_std_msg *)buffer;
 
+    // printf("(dst, src, len, flags) : (%d, %d, %d, %d)\n", (dst & 0xFFFF), (src & 0xFFFF), (size & 0xFFFF), (flags & 0xFFFF));
+    
+    *rpmsg_msg = rpmsg_std_msg_instance;
+
+    printf("------------------------ rpmsg_lite 682 --------------------\n");
+
+#if (0) 
     /* Initialize RPMSG header. */
     rpmsg_msg->hdr.dst   = dst;
     rpmsg_msg->hdr.src   = src;
     rpmsg_msg->hdr.len   = (uint16_t)size;
     rpmsg_msg->hdr.flags = (uint16_t)(flags & 0xFFFFU);
 
+    
+
     /* Copy data to rpmsg buffer. */
     env_memcpy(rpmsg_msg->data, data, size);
-
+#endif    
     env_lock_mutex(rpmsg_lite_dev->lock);
     /* Enqueue buffer on virtqueue. */
     rpmsg_lite_dev->vq_ops->vq_tx(rpmsg_lite_dev->tvq, buffer, buff_len, idx);
     /* Let the other side know that there is a job to process. */
+
     virtqueue_kick(rpmsg_lite_dev->tvq);
     env_unlock_mutex(rpmsg_lite_dev->lock);
 
+printf("------------------------ rpmsg_lite 669 --------------------\n");
     return RL_SUCCESS;
 }
 
@@ -689,6 +734,16 @@ int32_t rpmsg_lite_send(struct rpmsg_lite_instance *rpmsg_lite_dev,
     {
         return RL_ERR_BUFF_SIZE;
     }
+
+    printf("(dst, src, len, flags) : (%d)\n", (ept->addr) & 0xFFFFU);
+
+    printf("------------------------ rpmsg_lite 694 --------------------\n");
+
+    rpmsg_std_msg_instance.hdr.dst = dst;
+    rpmsg_std_msg_instance.hdr.src = ept->addr;
+    rpmsg_std_msg_instance.hdr.len = size;
+    rpmsg_std_msg_instance.hdr.flags = RL_NO_FLAGS;
+    env_memcpy(rpmsg_std_msg_instance.data, data, size);
 
     return rpmsg_lite_format_message(rpmsg_lite_dev, ept->addr, dst, data, size, RL_NO_FLAGS, timeout);
 }
@@ -825,6 +880,7 @@ int32_t rpmsg_lite_release_rx_buffer(struct rpmsg_lite_instance *rpmsg_lite_dev,
 {
     struct rpmsg_std_msg *rpmsg_msg;
 
+    printf("rpmsg_lite line 883 \n");
     if (rpmsg_lite_dev == RL_NULL)
     {
         return RL_ERR_PARAM;

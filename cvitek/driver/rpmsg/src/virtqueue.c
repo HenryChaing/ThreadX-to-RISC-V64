@@ -29,6 +29,7 @@
 
 #include "rpmsg_env.h"
 #include "virtqueue.h"
+#include <arch_helpers.h>
 
 /* Prototype for internal functions. */
 static void vq_ring_update_avail(struct virtqueue *vq, uint16_t desc_idx);
@@ -56,6 +57,8 @@ static uint16_t virtqueue_nused(struct virtqueue *vq);
  *
  * @return          - Function status
  */
+
+/* line 349 */
 int32_t virtqueue_create_static(uint16_t id,
                                 const char *name,
                                 struct vring_alloc_info *ring,
@@ -92,6 +95,7 @@ int32_t virtqueue_create_static(uint16_t id,
         vq->vq_ring_mem  = (void *)ring->phy_addr;
 
         vring_init(&vq->vq_ring, vq->vq_nentries, vq->vq_ring_mem, (uint32_t)vq->vq_alignment);
+        printf("virtqueue line 97 (%p, %p, %p)\n",vq->vq_ring.desc ,vq->vq_ring.avail ,vq->vq_ring.used);
 
         *v_queue = vq;
     }
@@ -346,14 +350,21 @@ void virtqueue_free(struct virtqueue *vq)
  *
  * @return                          - Pointer to available buffer
  */
+
+/* line 61 */
+
 void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, uint32_t *len)
 {
     uint16_t head_idx = 0;
     void *buffer;
 
+    printf("virtqueue 354\n");
+
     if (vq->vq_available_idx == vq->vq_ring.avail->idx)
     {
+        printf("virtqueue vq->vq_ring.avail->idx %p\n", &(vq->vq_ring.avail->idx));
         printf("virtqueue vq->vq_available_idx %d\n", vq->vq_available_idx);
+
         printf("virtqueue vq->vq_ring.avail->idx %d\n", vq->vq_ring.avail->idx);
         printf("virtqueue 356\n");
         return (VQ_NULL);
@@ -373,6 +384,10 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
     *len = vq->vq_ring.desc[*avail_idx].len;
 
     VQUEUE_IDLE(vq, avail_read);
+
+    printf("( q->vq_ring.desc[*avail_idx] : ( %p )\n", vq->vq_ring.desc[0]);
+    printf("virtqueue vq->vq_ring.avail->idx %d\n", vq->vq_ring.avail->idx);
+    printf("virtqueue vq->vq_available_idx %d\n", vq->vq_available_idx);
 
     printf("virtqueue 375\n");
 
@@ -585,6 +600,8 @@ static uint16_t vq_ring_add_buffer(
  * vq_ring_init
  *
  */
+/* line 349 */
+
 void vq_ring_init(struct virtqueue *vq)
 {
     struct vring *vr;
@@ -598,6 +615,9 @@ void vq_ring_init(struct virtqueue *vq)
         vr->desc[i].next = (uint16_t)(i + 1U);
     }
     vr->desc[i].next = (uint16_t)VQ_RING_DESC_CHAIN_END;
+
+printf("------------------------ virtqueue 609 --------------------\n");
+
 }
 
 /*!
@@ -654,6 +674,11 @@ static void vq_ring_update_used(struct virtqueue *vq, uint16_t head_idx, uint32_
     env_wmb();
 
     vq->vq_ring.used->idx++;
+
+    flush_dcache_range(&(vq->vq_ring.used->idx),32);
+
+    printf("vq->vq_ring.used->idx %d\n", vq->vq_ring.used->idx);
+    printf("vq->vq_ring.used->idx addr %x\n", &(vq->vq_ring.used->idx));
 }
 
 /*!
