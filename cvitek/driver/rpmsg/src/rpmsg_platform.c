@@ -92,16 +92,8 @@ void platform_notify(uint32_t vector_id)
     MU_SendMsg(MUB, RPMSG_MU_CHANNEL, msg);
 #endif
 
-    struct cmdqu_t cmdq = {0};
-    cmdq.ip_id = 0;
-    cmdq.cmd_id = CMD_DUO_LED;
-    cmdq.resv.mstime = 100;
-    cmdq.param_ptr = DUO_LED_ON;
-    cmdq.block = 0;
-    cmdq.resv.valid.linux_valid = 0;
-    cmdq.resv.valid.rtos_valid = 0;
     printf("---------------------------- RTOS SEND MESSAGE --------------------------------------------------------\n");
-    mailbox_send(&cmdq);
+    mailbox_send(vector_id & 0x1);
 
     env_unlock_mutex(platform_lock);
 }
