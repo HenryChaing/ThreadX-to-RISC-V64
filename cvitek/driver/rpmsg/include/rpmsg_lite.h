@@ -124,7 +124,7 @@ RL_PACKED_BEGIN
 struct rpmsg_std_msg
 {
     struct rpmsg_std_hdr hdr; /*!< RPMsg message header */
-    uint8_t data[1];          /*!< bytes of message payload data */
+    char data[64];          /*!< bytes of message payload data */
 } RL_PACKED_END;
 
 /*! \typedef rl_ept_rx_cb_t
