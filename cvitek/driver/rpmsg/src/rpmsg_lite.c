@@ -33,6 +33,7 @@
 
 #include "rpmsg_lite.h"
 #include "rpmsg_platform.h"
+#include <arch_helpers.h>
 
 /* Interface which is used to interact with the virtqueue layer,
  * a different interface is used, when the local processor is the MASTER
@@ -142,6 +143,10 @@ static void rpmsg_lite_rx_callback(struct virtqueue *vq)
     while (rpmsg_msg != RL_NULL)
     {
         printf("rpmsg_lite 144\n");
+        printf("rpmsg_msg->hdr.dst = %d\n", rpmsg_msg->hdr.dst);
+        printf("rpmsg_msg->hdr.src = %d\n", rpmsg_msg->hdr.src);
+        printf("rpmsg_msg->data = %s\n", rpmsg_msg->data);
+        
         node = rpmsg_lite_get_endpoint_from_addr(rpmsg_lite_dev, rpmsg_msg->hdr.dst);
         printf("rpmsg_lite 146\n");
 
@@ -640,7 +645,7 @@ int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_dev,
 
     // printf("(dst, src, len, flags) : (%d)\n", message_header_instance.dst + message_header_instance.src);
 
-    env_sleep_msec(10000);
+    env_sleep_msec(2000);
 
     // printf("(dst, src, len, flags) : (%d)\n", message_header_instance.src & 0xFFFFU);
 
@@ -686,6 +691,8 @@ int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_dev,
     // printf("(dst, src, len, flags) : (%d, %d, %d, %d)\n", (dst & 0xFFFF), (src & 0xFFFF), (size & 0xFFFF), (flags & 0xFFFF));
     
     *rpmsg_msg = rpmsg_std_msg_instance;
+
+    flush_dcache_range(rpmsg_msg,sizeof(struct rpmsg_std_msg));
 
     printf("------------------------ rpmsg_lite 682 --------------------\n");
 
