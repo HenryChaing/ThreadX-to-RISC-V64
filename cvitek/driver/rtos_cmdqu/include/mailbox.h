@@ -13,4 +13,4 @@
 #define MAILBOX_REG_BUFF                        (MAILBOX_REG_BASE + 0x0400)
 #define SPINLOCK_REG_BASE                       (MAILBOX_REG_BASE + 0x00c0)
 
-void mailbox_send(cmdqu_t *cmdq);
+void mailbox_send(int cmd_id);
