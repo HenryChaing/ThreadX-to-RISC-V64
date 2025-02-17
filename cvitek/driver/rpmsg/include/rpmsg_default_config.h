@@ -88,7 +88,7 @@
 //! in rpmsg_config.h files for the master and the remote side, 4 buffers
 //! in total are created in the shared memory.
 #ifndef RL_BUFFER_COUNT
-#define RL_BUFFER_COUNT (2U)
+#define RL_BUFFER_COUNT (256U)
 #endif
 
 #else
@@ -100,7 +100,7 @@
 #endif
 
 #ifndef RL_BUFFER_COUNT
-#define RL_BUFFER_COUNT(link_id) (((link_id) == 0U) ? 256U : 2U)
+#define RL_BUFFER_COUNT (256U)
 #endif
 #endif /* !(defined(RL_ALLOW_CUSTOM_SHMEM_CONFIG) && (RL_ALLOW_CUSTOM_SHMEM_CONFIG == 1))*/
 
