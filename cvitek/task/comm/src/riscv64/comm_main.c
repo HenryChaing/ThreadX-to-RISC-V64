@@ -585,11 +585,11 @@ void tx_application_define(void *first_unused_memory)
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 */
-	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 3, TX_NO_WAIT);
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 6, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
 	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tx_send_and_recieve_run_tests, 0, pointer,
-			 DEMO_STACK_SIZE * 3 , 7, 7, 10,
+			 DEMO_STACK_SIZE * 6 , 7, 7, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 
@@ -1117,20 +1117,26 @@ void tc_1_receive_send(void)
 
 void tc_2_receive_send(void) {
 
-	int32_t result = 0;
+    int32_t result = 0;
     char data[DATA_LEN] = {0};
     uint32_t src;
     uint32_t len;
 
-	for (int32_t i = 0; i < 1; i++)
+	printf("comm_main line 1126\n");
+
+    for (int32_t i = 0; i < /*TC_TRANSFER_COUNT*/26; i++)
     {
-		printf("--- rpmsg_queue_recv ---\n");
-		result = rpmsg_queue_recv(my_rpmsg, my_queue_2, &src, data, DATA_LEN, &len, RL_BLOCK);
-		printf("%s",data);
-		env_memset(data, 5, DATA_LEN);
+        result = rpmsg_queue_recv(my_rpmsg, my_queue_2, &src, data, DATA_LEN, &len, RL_BLOCK);
+        result = pattern_cmp(data,  'A' + i, DATA_LEN);
+		printf("%s\n",data);
+    }
+
+    for (int32_t i = 0; i < /*TC_TRANSFER_COUNT*/26; i++)
+    {
+        env_memset(data, 'A'+i, DATA_LEN);
         result = rpmsg_lite_send(my_rpmsg, my_ept_2, TC_REMOTE_EPT_2_ADDR, data, DATA_LEN, RL_BLOCK);
     }
-	// env_wait_for_link_up(0,my_rpmsg->link_id, RL_BLOCK);	
+
 }
 
 // VOID tx_send_and_recieve_run_tests(VOID)

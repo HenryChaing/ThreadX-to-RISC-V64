@@ -645,7 +645,7 @@ int32_t rpmsg_lite_format_message(struct rpmsg_lite_instance *rpmsg_lite_dev,
 
     // printf("(dst, src, len, flags) : (%d)\n", message_header_instance.dst + message_header_instance.src);
 
-    env_sleep_msec(2000);
+    // env_sleep_msec(2000);
 
     // printf("(dst, src, len, flags) : (%d)\n", message_header_instance.src & 0xFFFFU);
 
