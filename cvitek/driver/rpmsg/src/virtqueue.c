@@ -359,7 +359,7 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
     void *buffer;
 
     printf("virtqueue 354\n");
-
+    inv_dcache_range(&(vq->vq_ring.avail->idx),32);
     if (vq->vq_available_idx == vq->vq_ring.avail->idx)
     {
         printf("virtqueue vq->vq_ring.avail->idx %p\n", &(vq->vq_ring.avail->idx));
@@ -379,12 +379,14 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
 #if defined(RL_USE_ENVIRONMENT_CONTEXT) && (RL_USE_ENVIRONMENT_CONTEXT == 1)
     buffer = env_map_patova(vq->env, ((uint32_t)(vq->vq_ring.desc[*avail_idx].addr)));
 #else
+    inv_dcache_range(&(vq->vq_ring.desc[*avail_idx].addr),32);
     buffer   = env_map_patova((uint32_t)(vq->vq_ring.desc[*avail_idx].addr));
 #endif
     *len = vq->vq_ring.desc[*avail_idx].len;
 
     VQUEUE_IDLE(vq, avail_read);
 
+    inv_dcache_range(&(vq->vq_ring.avail->idx),32);
     printf("( q->vq_ring.desc[*avail_idx] : ( %p )\n", vq->vq_ring.desc[0]);
     printf("virtqueue vq->vq_ring.avail->idx %d\n", vq->vq_ring.avail->idx);
     printf("virtqueue vq->vq_available_idx %d\n", vq->vq_available_idx);
@@ -675,6 +677,8 @@ static void vq_ring_update_used(struct virtqueue *vq, uint16_t head_idx, uint32_
 
     vq->vq_ring.used->idx++;
 
+    flush_dcache_range(&(used_desc->id),16);
+    flush_dcache_range(&(used_desc->len),16);
     flush_dcache_range(&(vq->vq_ring.used->idx),32);
 
     printf("vq->vq_ring.used->idx %d\n", vq->vq_ring.used->idx);
