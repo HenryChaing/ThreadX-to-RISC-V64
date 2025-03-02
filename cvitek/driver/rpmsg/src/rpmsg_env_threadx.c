@@ -621,6 +621,7 @@ void env_isr(uint32_t vector)
     {
         info = &isr_table[vector];
         virtqueue_notification((struct virtqueue *)info->data);
+        platform_notify(vector);
     }
 }
 
