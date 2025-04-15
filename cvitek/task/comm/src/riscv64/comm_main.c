@@ -549,7 +549,6 @@ void tx_application_define(void *first_unused_memory)
 	ret = tx_byte_pool_create(&byte_pool_0, "byte pool 0", byte_pool_memory,DEMO_BYTE_POOL_SIZE);
 	IS_TX_ERROR(ret);
 
-	
     /* Allocate the message queue.  */
 	ret = tx_byte_allocate(&byte_pool_0, (VOID **) &pointer, DEMO_QUEUE_SIZE*sizeof(cmdqu_t), TX_NO_WAIT);
 	IS_TX_ERROR(ret);
@@ -585,11 +584,11 @@ void tx_application_define(void *first_unused_memory)
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 */
-	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 6, TX_NO_WAIT);
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 200, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
 	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tx_send_and_recieve_run_tests, 0, pointer,
-			 DEMO_STACK_SIZE * 6 , 7, 7, 10,
+			 DEMO_STACK_SIZE * 200 , 7, 7, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 
@@ -636,7 +635,7 @@ void thread_1_entry(ULONG thread_input)
  * rpmsg self defined data (ep1)
  *
  */
-#define TC_TRANSFER_COUNT 10
+#define TC_TRANSFER_COUNT 26
 #define DATA_LEN 45
 #define TC_LOCAL_EPT_ADDR (30)
 #define TC_REMOTE_EPT_ADDR (40)
@@ -944,7 +943,7 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 #define SH_MEM_TOTAL_SIZE (6144)
 // char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
 
-char *rpmsg_lite_base = 0x8fd00000;
+char *rpmsg_lite_base = 0x8fc00000;
 
 VOID tx_rpmsg_driver_initialize (VOID)
 {
@@ -1115,7 +1114,7 @@ void tc_1_receive_send(void)
     result = rpmsg_lite_release_rx_buffer(my_rpmsg, RL_NULL);
 }
 
-void tc_2_receive_send(void) {
+inline void tc_2_receive(void) {
 
     int32_t result = 0;
     char data[DATA_LEN] = {0};
@@ -1123,20 +1122,35 @@ void tc_2_receive_send(void) {
     uint32_t len;
 
 	printf("comm_main line 1126\n");
-
-    for (int32_t i = 0; i < /*TC_TRANSFER_COUNT*/26; i++)
+	
+	for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
     {
         result = rpmsg_queue_recv(my_rpmsg, my_queue_2, &src, data, DATA_LEN, &len, RL_BLOCK);
         result = pattern_cmp(data,  'A' + i, DATA_LEN);
 		printf("%s\n",data);
     }
 
-    for (int32_t i = 0; i < /*TC_TRANSFER_COUNT*/26; i++)
+}
+
+// static char data[DATA_LEN] = {0};
+
+void tc_2_send(void) {
+
+    char data[DATA_LEN] = {0};
+	int32_t result = 0;
+    uint32_t src;
+    uint32_t len;
+
+    printf("comm_main line 1136\n");
+	for (int32_t i = 0; i < 10; i++)
     {
         env_memset(data, 'A'+i, DATA_LEN);
+		// mailbox_send(0);
         result = rpmsg_lite_send(my_rpmsg, my_ept_2, TC_REMOTE_EPT_2_ADDR, data, DATA_LEN, RL_BLOCK);
+		if (result)
+			perror("Send Fault !");
     }
-
+	printf("comm_main line 1139\n");
 }
 
 // VOID tx_send_and_recieve_run_tests(VOID)
@@ -1179,8 +1193,19 @@ void tx_send_and_recieve_run_tests(ULONG thread_input)
 		result = rpmsg_ns_announce(my_rpmsg, my_ept, RPMSG_LITE_NS_ANNOUNCE_STRING, (uint32_t)RL_NS_CREATE);
 	}
 
-	tc_2_receive_send();
-	
+	tc_2_receive();
+	printf("comm_main line 1183\n");
+	// env_sleep_msec(1000*5);
+	tc_2_send();
+	printf("comm_main line 1197\n");
+	// env_sleep_msec(1000*5);
+	tc_2_send();
+	printf("comm_main line 1199\n");
+	// env_sleep_msec(1000*5);
+	tc_2_send();
+	printf("comm_main line 1201\n");
+	// env_sleep_msec(1000*5);
+	tc_2_send();	
 #if (0)
     if (!result)
     {
@@ -1203,4 +1228,5 @@ void tx_send_and_recieve_run_tests(ULONG thread_input)
 
 #endif
 	printf("common_main 1109\n");
+	env_sleep_msec(1000*1000*100);
 }
