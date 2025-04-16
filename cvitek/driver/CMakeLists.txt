@@ -20,6 +20,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SAFETY_FLAGS}")
 set(DRIVER_UART_DIR ${CMAKE_DRIVER_DIR}/uart)
 set(DRIVER_GPIO_DIR ${CMAKE_DRIVER_DIR}/gpio)
 set(DRIVER_I2C_DIR ${CMAKE_DRIVER_DIR}/i2c)
+set(DRIVER_CMDQU_DIR ${CMAKE_DRIVER_DIR}/rtos_cmdqu)
 
 include(${TOP_DIR}/scripts/ParseConfiguration.cmake)
 ParseConfiguration("${BUILD_ENV_PATH}/.config")
