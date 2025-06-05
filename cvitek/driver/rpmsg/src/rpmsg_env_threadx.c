@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2023 NXP
+ * Copyright 2020-2025 NXP
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -26,6 +26,7 @@
 // #include "fsl_component_mem_manager.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>  /* For INT32_MAX */
 #include "virtqueue.h"
 
 static int32_t env_init_counter         = 0;
@@ -79,39 +80,29 @@ static int32_t env_in_isr(void)
  */
 uint32_t env_wait_for_link_up(volatile uint32_t *link_state, uint32_t link_id, uint32_t timeout_ms)
 {
-    printf("rpmsg_env_threadx 82\n");
     ULONG actual_events;
-    UINT result;
     if (*link_state != 1U)
     {
-        if ( /*RL_BLOCK == timeout_ms*/ true)
+        if (RL_BLOCK == timeout_ms)
         {
-            result = tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, TX_WAIT_FOREVER);
-            printf("rpmsg_env_threadx result = %d\n", result);
-            if (TX_SUCCESS == result)
+            if (TX_SUCCESS ==
+                tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, TX_WAIT_FOREVER))
             {
-                printf("rpmsg_env_threadx 91\n");
                 return 1U;
             }
-            printf("rpmsg_env_threadx 94\n");
         }
         else
         {
-            result = tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events, ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000));
-            printf("rpmsg_env_threadx result = %d\n", result);
-            if (TX_SUCCESS == result)
+            if (TX_SUCCESS == tx_event_flags_get(&event_group, (1UL << link_id), TX_AND, &actual_events,
+                                                 ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000)))
             {
-                printf("rpmsg_env_threadx 104\n");
                 return 1U;
             }
-            printf("rpmsg_env_threadx 103\n");
         }
-        printf("rpmsg_env_threadx 105\n");
         return 0U;
     }
     else
     {
-        printf("rpmsg_env_threadx 114\n");
         return 1U;
     }
 }
@@ -137,12 +128,14 @@ int32_t env_init(void)
 {
     int32_t retval;
     // uint32_t regPrimask = DisableGlobalIRQ(); /* stop scheduler */
+    platform_interrupt_disable(0);
 
     /* verify 'env_init_counter' */
     RL_ASSERT(env_init_counter >= 0);
     if (env_init_counter < 0)
     {
         // EnableGlobalIRQ(regPrimask); /* re-enable scheduler */
+        platform_interrupt_enable(0);
         return -1;
     }
     env_init_counter++;
@@ -153,11 +146,13 @@ int32_t env_init(void)
         if (TX_SUCCESS != tx_semaphore_create((TX_SEMAPHORE *)&env_sema, NULL, 0))
         {
             // EnableGlobalIRQ(regPrimask);
+            platform_interrupt_enable(0);
             return -1;
         }
         (void)tx_event_flags_create(&event_group, NULL);
         (void)memset(isr_table, 0, sizeof(isr_table));
         // EnableGlobalIRQ(regPrimask);
+        platform_interrupt_enable(0);
         retval = platform_init();
         tx_semaphore_put((TX_SEMAPHORE *)&env_sema);
 
@@ -166,6 +161,7 @@ int32_t env_init(void)
     else
     {
         // EnableGlobalIRQ(regPrimask);
+        platform_interrupt_enable(0);
         /* Get the semaphore and then return it,
          * this allows for platform_init() to block
          * if needed and other tasks to wait for the
@@ -191,11 +187,13 @@ int32_t env_deinit(void)
     int32_t retval;
 
     // uint32_t regPrimask = DisableGlobalIRQ(); /* stop scheduler */
+    platform_interrupt_disable(0);
     /* verify 'env_init_counter' */
     RL_ASSERT(env_init_counter > 0);
     if (env_init_counter <= 0)
     {
         // EnableGlobalIRQ(regPrimask); /* re-enable scheduler */
+        platform_interrupt_enable(0);
         return -1;
     }
 
@@ -212,11 +210,13 @@ int32_t env_deinit(void)
         (void)tx_semaphore_delete((TX_SEMAPHORE *)&env_sema);
         (void)memset(&env_sema, 0, sizeof(env_sema));
         // EnableGlobalIRQ(regPrimask);
+        platform_interrupt_enable(0);
         return retval;
     }
     else
     {
         // EnableGlobalIRQ(regPrimask);
+        platform_interrupt_enable(0);
         return 0;
     }
 }
@@ -254,7 +254,8 @@ void env_free_memory(void *ptr)
  */
 void env_memset(void *ptr, int32_t value, uint32_t size)
 {
-    (void)memset(ptr, value, size);
+    /* Explicitly convert value to unsigned char range to ensure consistent behavior */
+    (void)memset(ptr, (unsigned char)(value & 0xFF), size);
 }
 
 /*!
@@ -316,7 +317,8 @@ int32_t env_strncmp(char *dest, const char *src, uint32_t len)
  */
 void env_mb(void)
 {
-    MEM_BARRIER();
+    // MEM_BARRIER();
+    __asm volatile("fence rw, rw");
 }
 
 /*!
@@ -324,7 +326,8 @@ void env_mb(void)
  */
 void env_rmb(void)
 {
-    MEM_BARRIER();
+    // MEM_BARRIER();
+    __asm volatile("fence rw, rw");
 }
 
 /*!
@@ -332,7 +335,8 @@ void env_rmb(void)
  */
 void env_wmb(void)
 {
-    MEM_BARRIER();
+    // MEM_BARRIER();
+    __asm volatile("fence rw, rw");
 }
 
 /*!
@@ -506,7 +510,9 @@ void env_release_sync_lock(void *lock)
  */
 void env_sleep_msec(uint32_t num_msec)
 {
-    (void)tx_thread_sleep((num_msec * TX_TIMER_TICKS_PER_SECOND) / 1000);
+    // (void)tx_thread_sleep((num_msec * TX_TIMER_TICKS_PER_SECOND) / 1000);
+    (void)tx_thread_sleep((num_msec / 1000) * TX_TIMER_TICKS_PER_SECOND +
+                          ((num_msec % 1000) * TX_TIMER_TICKS_PER_SECOND) / 1000);
 }
 
 /*!
@@ -597,6 +603,20 @@ void env_disable_cache(void)
     platform_cache_disable();
 }
 
+void env_cache_flush(void *data, uint32_t len)
+{
+#if defined(RL_USE_DCACHE) && (RL_USE_DCACHE == 1)
+    platform_cache_flush(data, len);
+#endif
+}
+
+void env_cache_invalidate(void *data, uint32_t len)
+{
+#if defined(RL_USE_DCACHE) && (RL_USE_DCACHE == 1)
+    platform_cache_invalidate(data, len);
+#endif
+}
+
 /*!
  *
  * env_get_timestamp
@@ -621,8 +641,8 @@ void env_isr(uint32_t vector)
     {
         info = &isr_table[vector];
         virtqueue_notification((struct virtqueue *)info->data);
-        platform_notify(vector);
     }
+    // printf("line 645\n");
 }
 
 /*
@@ -650,6 +670,19 @@ int32_t env_create_queue(void **queue, int32_t length, int32_t element_size)
 {
     struct TX_QUEUE *queue_ptr = ((void *)0);
     char *msgq_buffer_ptr      = ((void *)0);
+
+    if (length < 0 || element_size < 0)
+    {
+        /* Length and size should not be negative */
+        *queue = NULL;
+        return -1;
+    }
+
+    /* Additional integer overflow protection */
+    if (length > INT32_MAX / element_size)
+    {
+        return -1; /* Multiplication would overflow */
+    }
 
 #if defined(RL_USE_STATIC_API) && (RL_USE_STATIC_API == 1)
     queue_ptr       = (struct TX_QUEUE *)queue_static_context;
@@ -708,18 +741,8 @@ void env_delete_queue(void *queue)
  * @return - status of function execution
  */
 
-#define IS_TX_ERROR(x) \
-	do{ \
-		if((x) != TX_SUCCESS) \
-			printf("error: %d at %s\n", __LINE__, __FILE__); \
-	}while(0)
-
-
-
 int32_t env_put_queue(void *queue, void *msg, uintptr_t timeout_ms)
 {
-    int ret;
-    
     if (RL_BLOCK == timeout_ms)
     {
         if (TX_SUCCESS == tx_queue_send((TX_QUEUE *)(queue), msg, TX_WAIT_FOREVER))
@@ -729,13 +752,9 @@ int32_t env_put_queue(void *queue, void *msg, uintptr_t timeout_ms)
     }
     else
     {
-        ret = tx_queue_send((TX_QUEUE *)(queue), msg, ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000));
-        
-        if (TX_SUCCESS == ret)
+        if (TX_SUCCESS == tx_queue_send((TX_QUEUE *)(queue), msg, ((timeout_ms * TX_TIMER_TICKS_PER_SECOND) / 1000)))
         {
             return 1;
-        } else {
-            IS_TX_ERROR(ret);
         }
     }
     return 0;

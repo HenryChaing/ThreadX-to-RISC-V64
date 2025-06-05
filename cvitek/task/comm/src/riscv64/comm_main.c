@@ -524,7 +524,7 @@ UINT    status;
 void tx_mailbox_driver_output(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
-void tx_send_and_recieve_run_tests(ULONG thread_input);
+static void application_thread(ULONG thread_input);
 void tc_1_rpmsg_init(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
@@ -584,19 +584,19 @@ void tx_application_define(void *first_unused_memory)
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 */
-	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 200, TX_NO_WAIT);
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 10, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
-	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", tx_send_and_recieve_run_tests, 0, pointer,
-			 DEMO_STACK_SIZE * 200 , 7, 7, 10,
+	ret = tx_thread_create(&rpmsg_thread, "rpmsg_thread", application_thread, 0, pointer,
+			 DEMO_STACK_SIZE * 10, 6, 6, 10,
 			 TX_AUTO_START);
 	IS_TX_ERROR(ret);
 
-	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 10, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
 	ret = tx_thread_create(&mail_thread, "mail thread", tx_mailbox_driver_output, 0, 
-			 pointer, DEMO_STACK_SIZE, 1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
+			 pointer, DEMO_STACK_SIZE * 10, 1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
 	IS_TX_ERROR(ret);
 }
 
@@ -604,7 +604,13 @@ void thread_0_entry(ULONG thread_input)
 {
 	(void)thread_input;
 
-	//UINT status;
+	CHAR *name;
+	UINT state;
+	ULONG run_count;
+	UINT priority;
+	UINT preemption_threshold;
+	ULONG time_slice;
+	TX_THREAD *next_thread, *suspended_thread;
 
 	printf("thread 0 in\n");
 	double result = 0;
@@ -615,6 +621,17 @@ void thread_0_entry(ULONG thread_input)
 
 		result = result + thread_0_counter * 1.5;
 		printf("float cal: %d\n", (int)result);
+		tx_thread_info_get(
+			&mail_thread, 
+			&name,
+			&state, 
+			&run_count,
+			&priority,
+			&preemption_threshold,
+			&time_slice,
+			&next_thread,
+			&suspended_thread);
+		printf("mail_thread thread info: %d\n", state);
 
 		tx_thread_sleep(TX_MS_TO_TICKS(4000));  // 5ms per tick(200Hz)
 	}
@@ -623,47 +640,34 @@ void thread_0_entry(ULONG thread_input)
 void thread_1_entry(ULONG thread_input)
 {
 	(void)thread_input;
+	CHAR *name;
+	UINT state;
+	ULONG run_count;
+	UINT priority;
+	UINT preemption_threshold;
+	ULONG time_slice;
+	TX_THREAD *next_thread, *suspended_thread;
 
 	printf("thread 1 in\n");
 	while (1) {
 		printf("threadx 1 running: %d\n", thread_1_counter++);
+
+		tx_thread_info_get(
+			&rpmsg_thread, 
+			&name,
+			&state, 
+			&run_count,
+			&priority,
+			&preemption_threshold,
+			&time_slice,
+			&next_thread,
+			&suspended_thread);
+		printf("rpmsg_thread thread info: %d\n", state);
+
+
 		tx_thread_sleep(TX_MS_TO_TICKS(8000));  
 	}
 }
-/*
- *
- * rpmsg self defined data (ep1)
- *
- */
-#define TC_TRANSFER_COUNT 26
-#define DATA_LEN 45
-#define TC_LOCAL_EPT_ADDR (30)
-#define TC_REMOTE_EPT_ADDR (40)
-#define RPMSG_LITE_NS_ANNOUNCE_STRING "rpmsg_chrdev"
-
-struct rpmsg_lite_endpoint *volatile my_ept = NULL;
-struct rpmsg_lite_ept_static_context my_ept_ctxt;
-
-rpmsg_queue_handle my_queue = NULL;
-rpmsg_static_queue_ctxt my_queue_ctxt = {0};
-uint8_t my_rpmsg_queue_storage[RL_ENV_QUEUE_STATIC_STORAGE_SIZE] = {0};
-struct rpmsg_lite_instance *volatile my_rpmsg = NULL;
-struct rpmsg_lite_instance rpmsg_ctxt = {0};
-rpmsg_ns_handle ns_handle = NULL;
-rpmsg_ns_static_context my_ns_ctxt = {0};
-
-/*
- *
- * rpmsg self defined data (ep2)
- *
- */
-#define TC_LOCAL_EPT_2_ADDR (31)
-#define TC_REMOTE_EPT_2_ADDR (41)
-struct rpmsg_lite_endpoint *volatile my_ept_2 = NULL;
-struct rpmsg_lite_ept_static_context my_ept_ctxt_2;
-rpmsg_queue_handle my_queue_2 = NULL;
-rpmsg_static_queue_ctxt my_queue_ctxt_2 = {0};
-uint8_t my_rpmsg_queue_storage_2[RL_ENV_QUEUE_STATIC_STORAGE_SIZE] = {0};
 
 /*
  *
@@ -857,7 +861,7 @@ VOID tx_mailbox_driver_output(ULONG thread_input)
 
 VOID tx_mailbox_driver_output_ISR(VOID)
 {
-  	printf("tx_mailbox_driver_output_ISR\n");
+  	// printf("tx_mailbox_driver_output_ISR\n");
 	unsigned char set_val;
 	unsigned char valid_val;
 	int i;
@@ -874,14 +878,14 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 				cmdqu_t rtos_cmdq;
 				cmdq = (cmdqu_t *)(mailbox_context) + i;
 
-				debug_printf("set_val =%d\n",
-					     set_val);
-				debug_printf("valid_val =%d\n",
-					     valid_val);
-				debug_printf("mailbox_context =%x\n",
-					     mailbox_context);
-				debug_printf("sizeof mailbox_context =%x\n",
-					     sizeof(cmdqu_t));
+				// debug_printf("set_val =%d\n",
+				// 	     set_val);
+				// debug_printf("valid_val =%d\n",
+				// 	     valid_val);
+				// debug_printf("mailbox_context =%x\n",
+				// 	     mailbox_context);
+				// debug_printf("sizeof mailbox_context =%x\n",
+				// 	     sizeof(cmdqu_t));
 				/* mailbox buffer context is send from linux, clear mailbox interrupt */
 				mbox_reg->cpu_mbox_set[RECEIVE_CPU]
 					.cpu_mbox_int_clr.mbox_int_clr =
@@ -898,21 +902,23 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 
 				/* mailbox buffer context is send from linux*/
 				if (rtos_cmdq.resv.valid.linux_valid == 1) {
-					debug_printf("cmdq=%x\n", cmdq);
-					debug_printf("cmdq->ip_id =%d\n",
-						     rtos_cmdq.ip_id);
-					debug_printf("cmdq->cmd_id =%d\n",
-						     rtos_cmdq.cmd_id);
-					debug_printf("cmdq->param_ptr =%x\n",
-						     rtos_cmdq.param_ptr);
-					debug_printf("cmdq->block =%x\n",
-						     rtos_cmdq.block);
-					debug_printf("cmdq->linux_valid =%d\n",
-						     rtos_cmdq.resv.valid
-							     .linux_valid);
-					debug_printf(
-						"cmdq->rtos_valid =%x\n",
-						rtos_cmdq.resv.valid.rtos_valid);
+					// debug_printf("cmdq=%x\n", cmdq);
+					// debug_printf("cmdq->ip_id =%d\n",
+					// 	     rtos_cmdq.ip_id);
+					// debug_printf("cmdq->cmd_id =%d\n",
+					// 	     rtos_cmdq.cmd_id);
+					// debug_printf("cmdq->param_ptr =%x\n",
+					// 	     rtos_cmdq.param_ptr);
+					// debug_printf("cmdq->block =%x\n",
+					// 	     rtos_cmdq.block);
+					// debug_printf("cmdq->linux_valid =%d\n",
+					// 	     rtos_cmdq.resv.valid
+					// 		     .linux_valid);
+					// debug_printf(
+					// 	"cmdq->rtos_valid =%x\n",
+					// 	rtos_cmdq.resv.valid.rtos_valid);
+
+					env_sleep_msec(2000);
 
 					/* Notify thread last character transmit is
 					complete. */
@@ -931,302 +937,74 @@ VOID tx_mailbox_driver_output_ISR(VOID)
 	}
 }
 
+#include "rpmsg_lite.h"
+
+#define LOCAL_EPT_ADDR                (30U)
+#define APP_RPMSG_READY_EVENT_DATA    (1U)
+#define APP_RPMSG_EP_READY_EVENT_DATA (2U)
+
+struct rpmsg_lite_instance *gp_rpmsg_dev_inst;
+struct rpmsg_lite_endpoint *gp_rpmsg_ept;
+struct rpmsg_lite_instance g_rpmsg_ctxt;
+struct rpmsg_lite_ept_static_context g_ept_context;
+volatile int32_t g_has_received;
+
+uint32_t *shared_memory = (uint32_t *)0x8fc00000;
+
+typedef struct the_message
+{
+    uint32_t DATA;
+} THE_MESSAGE, *THE_MESSAGE_PTR;
+
+static THE_MESSAGE volatile g_msg = {0};
+static uint32_t g_remote_addr     = 0;
+
+/* Internal functions */
+static int32_t rpmsg_ept_read_cb(void *payload, uint32_t payload_len, uint32_t src, void *priv)
+{
+    volatile int32_t *has_received = priv;
+    if (payload_len <= sizeof(THE_MESSAGE))
+    {
+		(void)memcpy((void *)&g_msg, payload, payload_len);
+        g_remote_addr = src;
+        *has_received = 1;
+		// printf("line 934\n");
+    }
+    return RL_RELEASE;
+}
+
+static void application_thread(ULONG thread_input)
+{
+    (void)thread_input;
+
+    gp_rpmsg_dev_inst = rpmsg_lite_remote_init(shared_memory, 0, RL_NO_FLAGS, &g_rpmsg_ctxt);
+
+    // rpmsg_lite_wait_for_link_up(gp_rpmsg_dev_inst, 600000);
+
+    gp_rpmsg_ept = rpmsg_lite_create_ept(gp_rpmsg_dev_inst, LOCAL_EPT_ADDR, rpmsg_ept_read_cb, (void *)&g_has_received,
+                                         &g_ept_context);
+
+	gp_rpmsg_dev_inst->link_state = RL_TRUE;
+    int result = rpmsg_ns_announce(gp_rpmsg_dev_inst, gp_rpmsg_ept, "rpmsg-sg2002-c906l-channel", (uint32_t)RL_NS_CREATE);
+    // if (result){
+    //     RL_ASSERT(result == 0);
+    // }
+
+    while (g_msg.DATA <= 100U)
+    {
+        if (1 == g_has_received)
+        {
+            // printf("line 960\n");
+			g_has_received = 0;
+            g_msg.DATA++;
+            (void)rpmsg_lite_send(gp_rpmsg_dev_inst, gp_rpmsg_ept, g_remote_addr, (char *)&g_msg, sizeof(THE_MESSAGE),
+                                  RL_DONT_BLOCK);
+        }
+    }
+
+    (void)rpmsg_lite_destroy_ept(gp_rpmsg_dev_inst, gp_rpmsg_ept);
+    gp_rpmsg_ept = ((void *)0);
+    (void)rpmsg_lite_deinit(gp_rpmsg_dev_inst);
+    g_msg.DATA = 0U;
+}
 #endif
-
-
-/*
- *
- * rpmsg init
- *
- */
-
-#define SH_MEM_TOTAL_SIZE (6144)
-// char rpmsg_lite_base[SH_MEM_TOTAL_SIZE];
-
-char *rpmsg_lite_base = 0x8fc00000;
-
-VOID tx_rpmsg_driver_initialize (VOID)
-{
-    struct rpmsg_lite_instance *my_rpmsg;
-    struct rpmsg_lite_instance rpmsg_ctxt;
-    int32_t result, test_counter = 0;
-
-	my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base, 0, RL_NO_FLAGS, &rpmsg_ctxt);
-
-	printf("common_main 885\n");
-
-	/* incomming interrupt changes state to state_created_channel */
-	rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
-	printf("common_main 895\n");
-	result = rpmsg_lite_deinit(my_rpmsg);
-	printf("common_main 897\n");
-}
-
-
-/*
- *
- * rpmsg send & recieve
- *
- */
-
-static void app_nameservice_isr_cb(uint32_t new_ept, const char *new_ept_name, uint32_t flags, void *user_data)
-{
-}
-
-// utility: initialize rpmsg and environment
-// and wait for default channel
-int32_t ts_init_rpmsg(void)
-{
-    env_init();
-    my_rpmsg = rpmsg_lite_remote_init(rpmsg_lite_base, 0, RL_NO_FLAGS, &rpmsg_ctxt);
-
-	rpmsg_lite_wait_for_link_up(my_rpmsg, RL_BLOCK);
-    
-    /* wait for a while to allow the primary side to bind_ns and register the NS callback */
-    for (int i = 0; i < 10 ;i++){
-		env_sleep_msec(200);
-	}		
-
-    ns_handle = rpmsg_ns_bind(my_rpmsg, app_nameservice_isr_cb, ((void *)0), &my_ns_ctxt);  
-	return 0;
-}
-
-// utility: deinitialize rpmsg and environment
-int32_t ts_deinit_rpmsg(void)
-{
-    rpmsg_ns_unbind(my_rpmsg, ns_handle);
-    ns_handle = NULL;
-    env_memset(&my_ns_ctxt, 0, sizeof(rpmsg_ns_static_context));
-    rpmsg_lite_deinit(my_rpmsg);
-    my_rpmsg = NULL;
-    env_memset(&rpmsg_ctxt, 0, sizeof(struct rpmsg_lite_instance));
-    return 0;
-}
-
-// utility: create number of epts
-int32_t ts_create_epts(rpmsg_queue_handle queues[], uint8_t queues_storage[], rpmsg_static_queue_ctxt queues_ctxt[], struct rpmsg_lite_endpoint *volatile epts[], struct rpmsg_lite_ept_static_context epts_ctxt[], int32_t count, int32_t init_addr)
-{
-
-    // invalid params for rpmsg_queue_create
-
-    for (int32_t i = 0; i < count; i++)
-    {
-        queues[i] = rpmsg_queue_create(my_rpmsg, &queues_storage[i], &queues_ctxt[i]);
-        epts[i] = rpmsg_lite_create_ept(my_rpmsg, init_addr + i, rpmsg_queue_rx_cb, queues[i], &epts_ctxt[i]);
-    }
-    return 0;
-}
-
-// utility: destroy number of epts
-int32_t ts_destroy_epts(rpmsg_queue_handle queues[], struct rpmsg_lite_endpoint *volatile epts[], int32_t count)
-{
-    // invalid params for rpmsg_queue_destroy
-
-    for (int32_t i = 0; i < count; i++)
-    {
-        rpmsg_queue_destroy(my_rpmsg, queues[i]);
-        rpmsg_lite_destroy_ept(my_rpmsg, epts[i]);
-    }
-    return 0;
-}
-
-int32_t pattern_cmp(char *buffer, char pattern, int32_t len)
-{
-    for (int32_t i = 0; i < len; i++)
-        if (buffer[i] != pattern)
-            return -1;
-    return 0;
-}
-
-/******************************************************************************
- * Test case 1
- * - verify simple transport between default epts of default channels
- * - verify simple nocopy transport between default epts of default channels
- * - verify simple transport between custom created epts of default channels
- * - verify simple nocopy transport between custom created epts of default channels
- *****************************************************************************/
-void tc_1_receive_send(void)
-{
-    int32_t result = 0;
-    char data[DATA_LEN] = {0};
-    void *data_addr = NULL;
-    uint32_t src;
-    uint32_t len;
-
-	printf("comm_main line 1040\n");
-
-    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
-    {
-        result = rpmsg_queue_recv(my_rpmsg, my_queue, &src, data, DATA_LEN, &len, RL_BLOCK);
-        result = pattern_cmp(data, i, DATA_LEN);
-    }
-
-    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
-    {
-        result = rpmsg_queue_recv_nocopy(my_rpmsg, my_queue, &src, (char **)&data_addr, &len, RL_BLOCK);
-        result = pattern_cmp(data_addr, i, DATA_LEN);
-        result = rpmsg_queue_nocopy_free(my_rpmsg, data_addr);
-    }
-
-    /* for invalid length remote receive */
-    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
-
-    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
-    {
-        env_memset(data, i, DATA_LEN);
-        result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
-    }
-
-    for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
-    {
-        env_memset(data, i, DATA_LEN);
-        result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
-    }
-
-    // send message to non-existing endpoint address, message will be dropped on the receiver side
-    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR + 1, data, DATA_LEN, RL_BLOCK);
-
-    // send - invalid rpmsg_lite_dev
-    result = rpmsg_lite_send(RL_NULL, my_ept, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
-
-    // invalid params for send
-    result = rpmsg_lite_send(my_rpmsg, NULL, TC_REMOTE_EPT_ADDR, data, DATA_LEN, RL_BLOCK);
-    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, NULL, DATA_LEN, RL_BLOCK);
-    result = rpmsg_lite_send(my_rpmsg, my_ept, TC_REMOTE_EPT_ADDR, data, 0xFFFFFFFF, RL_BLOCK);
-
-    // invalid params for receive
-    result = rpmsg_queue_recv(RL_NULL, my_queue, &src, data, DATA_LEN, &len, RL_BLOCK);
-    result = rpmsg_queue_recv(my_rpmsg, RL_NULL, &src, data, DATA_LEN, &len, RL_BLOCK);
-    result = rpmsg_queue_recv(my_rpmsg, my_queue, &src, RL_NULL, DATA_LEN, &len, RL_BLOCK);
-    result = rpmsg_queue_recv(my_rpmsg, my_queue, &src, data, 0, &len, RL_BLOCK);
-
-    // invalid params for receive_nocopy
-    result = rpmsg_queue_recv_nocopy(RL_NULL, my_queue, &src, (char **)&data_addr, &len, RL_BLOCK);
-    result = rpmsg_queue_recv_nocopy(my_rpmsg, RL_NULL, &src, (char **)&data_addr, &len, RL_BLOCK);
-    result = rpmsg_queue_recv_nocopy(my_rpmsg, my_queue, &src, RL_NULL, &len, RL_BLOCK);
-
-    // invalid params for receive_nocopy_free
-    result = rpmsg_queue_nocopy_free(RL_NULL, data_addr);
-    result = rpmsg_queue_nocopy_free(my_rpmsg, RL_NULL);
-
-    // invalid params for rpmsg_lite_release_rx_buffer - this should not be used in an app and rpmsg_queue_nocopy_free should be used instead
-    result = rpmsg_lite_release_rx_buffer(RL_NULL, data_addr);
-    result = rpmsg_lite_release_rx_buffer(my_rpmsg, RL_NULL);
-}
-
-inline void tc_2_receive(void) {
-
-    int32_t result = 0;
-    char data[DATA_LEN] = {0};
-    uint32_t src;
-    uint32_t len;
-
-	printf("comm_main line 1126\n");
-	
-	for (int32_t i = 0; i < TC_TRANSFER_COUNT; i++)
-    {
-        result = rpmsg_queue_recv(my_rpmsg, my_queue_2, &src, data, DATA_LEN, &len, RL_BLOCK);
-        result = pattern_cmp(data,  'A' + i, DATA_LEN);
-		printf("%s\n",data);
-    }
-
-}
-
-// static char data[DATA_LEN] = {0};
-
-void tc_2_send(void) {
-
-    char data[DATA_LEN] = {0};
-	int32_t result = 0;
-    uint32_t src;
-    uint32_t len;
-
-    printf("comm_main line 1136\n");
-	for (int32_t i = 0; i < 10; i++)
-    {
-        env_memset(data, 'A'+i, DATA_LEN);
-		// mailbox_send(0);
-        result = rpmsg_lite_send(my_rpmsg, my_ept_2, TC_REMOTE_EPT_2_ADDR, data, DATA_LEN, RL_BLOCK);
-		if (result)
-			perror("Send Fault !");
-    }
-	printf("comm_main line 1139\n");
-}
-
-// VOID tx_send_and_recieve_run_tests(VOID)
-void tx_send_and_recieve_run_tests(ULONG thread_input)
-{
-    /* Remove compiler warning about unused parameter. */
-	(void)thread_input;
-	
-	int32_t result = 0;
-    struct rpmsg_lite_endpoint fake_ept = {0};
-    struct rpmsg_lite_instance fake_rpmsg = {0};
-    uint32_t bufer_size = 1;
-
-	printf("common_main 1078\n");
-/*
-    // call send before rpmsg_lite is initialized
-    result = rpmsg_lite_send(&fake_rpmsg, &fake_ept, TC_REMOTE_EPT_ADDR, (char*)0x12345678, DATA_LEN, RL_BLOCK);
-    result = rpmsg_lite_send_nocopy(&fake_rpmsg, &fake_ept, TC_REMOTE_EPT_ADDR, (char*)0x12345678, DATA_LEN);
-*/
-	printf("common_main 1084\n");
-
-    result = ts_init_rpmsg();
-   
-	result = ts_create_epts(&my_queue, &my_rpmsg_queue_storage[0], &my_queue_ctxt, &my_ept, &my_ept_ctxt, 1, TC_LOCAL_EPT_ADDR);
-	result = ts_create_epts(&my_queue_2, &my_rpmsg_queue_storage_2[0], &my_queue_ctxt_2, &my_ept_2, &my_ept_ctxt_2, 1, TC_LOCAL_EPT_2_ADDR);
-
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-	printf("common_main 1089\n");
-
-	// result = rpmsg_ns_announce(my_rpmsg, my_ept, RPMSG_LITE_NS_ANNOUNCE_STRING, (uint32_t)RL_NS_CREATE);
-
-	for (int i = 0; i < 1; i++)
-	{	
-		result = rpmsg_ns_announce(my_rpmsg, my_ept, RPMSG_LITE_NS_ANNOUNCE_STRING, (uint32_t)RL_NS_CREATE);
-	}
-
-	tc_2_receive();
-	printf("comm_main line 1183\n");
-	// env_sleep_msec(1000*5);
-	tc_2_send();
-	printf("comm_main line 1197\n");
-	// env_sleep_msec(1000*5);
-	tc_2_send();
-	printf("comm_main line 1199\n");
-	// env_sleep_msec(1000*5);
-	tc_2_send();
-	printf("comm_main line 1201\n");
-	// env_sleep_msec(1000*5);
-	tc_2_send();	
-#if (0)
-    if (!result)
-    {
-        tc_1_receive_send();
-    }
-
-    ts_destroy_epts(&my_queue, &my_ept, 1);
-
-	printf("common_main 1097\n");
-
-    my_queue = NULL;
-    env_memset(&my_rpmsg_queue_storage, 0, RL_ENV_QUEUE_STATIC_STORAGE_SIZE);
-    env_memset(&my_queue_ctxt, 0, sizeof(rpmsg_static_queue_ctxt));
-
-	printf("common_main 1103\n");
-
-    my_ept = NULL;
-    env_memset(&my_ept_ctxt, 0, sizeof(struct rpmsg_lite_ept_static_context));
-    result = ts_deinit_rpmsg();
-
-#endif
-	printf("common_main 1109\n");
-	env_sleep_msec(1000*1000*100);
-}

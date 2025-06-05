@@ -45,7 +45,7 @@ for (valid = 0; valid < MAILBOX_MAX_NUM; valid++) {
 	if (rtos_cmdqu_t->resv.valid.linux_valid == 0 &&
 		rtos_cmdqu_t->resv.valid.rtos_valid == 0) {
 
-			printf ("valid: %d\n", valid);
+			// printf ("valid: %d\n", valid);
 			// continue;
 
 			// mailbox buffer context is 4 bytes write access

@@ -32,12 +32,14 @@ static LOCK_STATIC_CONTEXT platform_lock_static_ctxt;
 
 static void platform_global_isr_disable(void)
 {
-    __asm volatile("cpsid i");
+    // __asm volatile("cpsid i");
+    __asm volatile("csrrc t0, mstatus, 0x8");
 }
 
 static void platform_global_isr_enable(void)
 {
-    __asm volatile("cpsie i");
+    // __asm volatile("cpsie i");
+    __asm volatile("csrrs t0, mstatus, 0x8");
 }
 
 int32_t platform_init_interrupt(uint32_t vector_id, void *isr_data)
@@ -92,7 +94,7 @@ void platform_notify(uint32_t vector_id)
     MU_SendMsg(MUB, RPMSG_MU_CHANNEL, msg);
 #endif
 
-    printf("---------------------------- RTOS SEND MESSAGE --------------------------------------------------------\n");
+    // printf("---------------------------- RTOS SEND MESSAGE --------------------------------------------------------\n");
     mailbox_send(vector_id & 0x1);
 
     env_unlock_mutex(platform_lock);
@@ -106,7 +108,7 @@ void rpmsg_handler(void)
 
     // env_tx_callback(0);
     env_isr(0);
-    printf(" rpmsg_platform 112\n");
+    // printf(" rpmsg_platform 112\n");
 
 #if (0)
     uint32_t msg, channel;
@@ -198,6 +200,7 @@ int32_t platform_interrupt_enable(uint32_t vector_id)
     }
     platform_global_isr_enable();
 #endif
+    platform_global_isr_enable();
     return ((int32_t)vector_id);
 }
 
@@ -226,6 +229,7 @@ int32_t platform_interrupt_disable(uint32_t vector_id)
     disable_counter++;
     platform_global_isr_enable();
 #endif
+    platform_global_isr_enable();
     return ((int32_t)vector_id);
 }
 
@@ -247,6 +251,7 @@ void platform_map_mem_region(uint32_t vrt_addr, uint32_t phy_addr, uint32_t size
  */
 void platform_cache_all_flush_invalidate(void)
 {
+
 }
 
 /**
@@ -257,6 +262,28 @@ void platform_cache_all_flush_invalidate(void)
  */
 void platform_cache_disable(void)
 {
+}
+
+/**
+ * platform_cache_flush
+ *
+ * Empty implementation
+ *
+ */
+void platform_cache_flush(void *data, uint32_t len)
+{
+    flush_dcache_range(data, len);
+}
+
+/**
+ * platform_cache_invalidate
+ *
+ * Empty implementation
+ *
+ */
+void platform_cache_invalidate(void *data, uint32_t len)
+{
+    inv_dcache_range(data, len);
 }
 
 /**

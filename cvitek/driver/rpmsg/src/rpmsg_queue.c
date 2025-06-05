@@ -128,12 +128,9 @@ int32_t rpmsg_queue_recv(struct rpmsg_lite_instance *rpmsg_lite_dev,
         return RL_ERR_PARAM;
     }
 
-    printf("rpmsg_queue line 131 \n");
-
     /* Get an element out of the message queue for the selected endpoint */
     if (0 != env_get_queue((void *)q, &msg, timeout))
     {
-        printf("rpmsg_queue line 136 \n");
         if (src != RL_NULL)
         {
             *src = msg.src;
@@ -152,14 +149,11 @@ int32_t rpmsg_queue_recv(struct rpmsg_lite_instance *rpmsg_lite_dev,
             retval = RL_ERR_BUFF_SIZE;
         }
 
-        printf("rpmsg_queue line 155 \n");
-
         /* Release used buffer. */
         return ((RL_SUCCESS == rpmsg_lite_release_rx_buffer(rpmsg_lite_dev, msg.data)) ? retval : RL_ERR_PARAM);
     }
     else
     {
-        printf("rpmsg_queue line 162 \n");
         return RL_ERR_NO_BUFF; /* failed */
     }
 }
