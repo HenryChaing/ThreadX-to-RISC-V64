@@ -997,6 +997,7 @@ static void application_thread(ULONG thread_input)
             // printf("line 960\n");
 			g_has_received = 0;
             g_msg.DATA++;
+			printf("send: %d\n",g_msg.DATA);
             (void)rpmsg_lite_send(gp_rpmsg_dev_inst, gp_rpmsg_ept, g_remote_addr, (char *)&g_msg, sizeof(THE_MESSAGE),
                                   RL_DONT_BLOCK);
         }

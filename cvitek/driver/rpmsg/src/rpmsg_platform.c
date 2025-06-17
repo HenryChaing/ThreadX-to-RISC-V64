@@ -95,7 +95,7 @@ void platform_notify(uint32_t vector_id)
 #endif
 
     // printf("---------------------------- RTOS SEND MESSAGE --------------------------------------------------------\n");
-    mailbox_send(vector_id & 0x1);
+    mailbox_send((vector_id & 0x1)+128);
 
     env_unlock_mutex(platform_lock);
 }
