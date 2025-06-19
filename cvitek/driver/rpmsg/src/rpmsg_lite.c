@@ -187,14 +187,11 @@ static void rpmsg_lite_rx_callback(struct virtqueue *vq)
 
     while (rpmsg_msg != RL_NULL)
     {
-        // printf("line 191\n");
         node = rpmsg_lite_get_endpoint_from_addr(rpmsg_lite_dev, rpmsg_msg->hdr.dst);
 
         cb_ret = RL_RELEASE;
         if (node != RL_NULL)
         {
-            // printf("line 196: (%d, %d, %d, %d)\n", rpmsg_msg->data, rpmsg_msg->hdr.len, rpmsg_msg->hdr.src, ept->rx_cb_data);
-            // printf("line 196");
             ept    = (struct rpmsg_lite_endpoint *)node->data;
             cb_ret = ept->rx_cb(rpmsg_msg->data, rpmsg_msg->hdr.len, rpmsg_msg->hdr.src, ept->rx_cb_data);
         }
@@ -219,8 +216,6 @@ static void rpmsg_lite_rx_callback(struct virtqueue *vq)
         }
 #endif
     }
-
-    // printf("line 223\n");
 
 #if defined(RL_USE_ENVIRONMENT_CONTEXT) && (RL_USE_ENVIRONMENT_CONTEXT == 1)
     env_unlock_mutex(rpmsg_lite_dev->lock);

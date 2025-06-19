@@ -11,9 +11,6 @@
 #include "rpmsg_platform.h"
 #include "rpmsg_env.h"
 
-// #include "board.h"
-// #include "mu_imx.h"
-
 /* cvitek includes. */
 #include "rtos_cmdqu.h"
 
@@ -32,13 +29,11 @@ static LOCK_STATIC_CONTEXT platform_lock_static_ctxt;
 
 static void platform_global_isr_disable(void)
 {
-    // __asm volatile("cpsid i");
     __asm volatile("csrrc t0, mstatus, 0x8");
 }
 
 static void platform_global_isr_enable(void)
 {
-    // __asm volatile("cpsie i");
     __asm volatile("csrrs t0, mstatus, 0x8");
 }
 
@@ -49,14 +44,6 @@ int32_t platform_init_interrupt(uint32_t vector_id, void *isr_data)
 
     /* Prepare the MU Hardware, enable channel 1 interrupt */
     env_lock_mutex(platform_lock);
-#if (0)
-    RL_ASSERT(0 <= isr_counter);
-    if (isr_counter == 0)
-    {
-        MU_EnableRxFullInt(MUB, RPMSG_MU_CHANNEL);
-    }
-    isr_counter++;
-#endif
     env_unlock_mutex(platform_lock);
 
     return 0;
@@ -66,15 +53,6 @@ int32_t platform_deinit_interrupt(uint32_t vector_id)
 {
     /* Prepare the MU Hardware */
     env_lock_mutex(platform_lock);
-
-#if (0)
-    RL_ASSERT(0 < isr_counter);
-    isr_counter--;
-    if (isr_counter == 0)
-    {
-        MU_DisableRxFullInt(MUB, RPMSG_MU_CHANNEL);
-    }
-#endif
     
     /* Unregister ISR from environment layer */
     env_unregister_isr(vector_id);
@@ -90,11 +68,6 @@ void platform_notify(uint32_t vector_id)
     uint32_t msg = (RL_GET_Q_ID(vector_id)) << 16;
 
     env_lock_mutex(platform_lock);
-#if (0)
-    MU_SendMsg(MUB, RPMSG_MU_CHANNEL, msg);
-#endif
-
-    // printf("---------------------------- RTOS SEND MESSAGE --------------------------------------------------------\n");
     mailbox_send((vector_id & 0x1)+128);
 
     env_unlock_mutex(platform_lock);
@@ -105,29 +78,7 @@ void platform_notify(uint32_t vector_id)
  */
 void rpmsg_handler(void)
 {
-
-    // env_tx_callback(0);
     env_isr(0);
-    // printf(" rpmsg_platform 112\n");
-
-#if (0)
-    uint32_t msg, channel;
-
-    if (MU_TryReceiveMsg(MUB, RPMSG_MU_CHANNEL, &msg) == kStatus_MU_Success)
-    {
-        channel = msg >> 16;
-        env_isr(channel);
-    }
-    /* ARM errata 838869, affects Cortex-M4, Cortex-M4F Store immediate overlapping
-     * exception return operation might vector to incorrect interrupt.
-     * For Cortex-M7, if core speed much faster than peripheral register write speed,
-     * the peripheral interrupt flags may be still set after exiting ISR, this results to
-     * the same error similar with errata 83869 */
-#if (defined __CORTEX_M) && ((__CORTEX_M == 4U) || (__CORTEX_M == 7U))
-    __DSB();
-#endif
-
-#endif
     return;
 }
 
@@ -142,16 +93,9 @@ void platform_time_delay(uint32_t num_msec)
 {
     uint32_t loop;
     
-    /* 參考 dts 之 cpu0 clock frequency */
+    /* reference sg2002 cpu0 clock frequency */
     uint64_t sys_clock = 25000000;
-
-    /* Recalculate the CPU frequency */
-    // SystemCoreClockUpdate();
-
-    /* Calculate the CPU loops to delay, each loop has 3 cycles */
-    // loop = SystemCoreClock / 3U / 1000U * num_msec;
     
-    /* 假設 C906L 有 pipeline 協助每次迭代僅須一個時脈週期*/
     loop = sys_clock / 1000U * num_msec;
 
     /* There's some difference among toolchains, 3 or 4 cycles each loop */
@@ -172,7 +116,6 @@ void platform_time_delay(uint32_t num_msec)
  */
 int32_t platform_in_isr(void)
 {
-    // return (((SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0UL) ? 1 : 0);
     return 0;
 }
 
@@ -188,18 +131,6 @@ int32_t platform_in_isr(void)
  */
 int32_t platform_interrupt_enable(uint32_t vector_id)
 {
-#if (0)
-    RL_ASSERT(0 < disable_counter);
-
-    platform_global_isr_disable();
-    disable_counter--;
-
-    if (disable_counter == 0)
-    {
-        NVIC_EnableIRQ(MU_M4_IRQn);
-    }
-    platform_global_isr_enable();
-#endif
     platform_global_isr_enable();
     return ((int32_t)vector_id);
 }
@@ -216,19 +147,6 @@ int32_t platform_interrupt_enable(uint32_t vector_id)
  */
 int32_t platform_interrupt_disable(uint32_t vector_id)
 {
-#if (0)
-    RL_ASSERT(0 <= disable_counter);
-
-    platform_global_isr_disable();
-    /* virtqueues use the same NVIC vector
-       if counter is set - the interrupts are disabled */
-    if (disable_counter == 0)
-    {
-        NVIC_DisableIRQ(MU_M4_IRQn);
-    }
-    disable_counter++;
-    platform_global_isr_enable();
-#endif
     platform_global_isr_enable();
     return ((int32_t)vector_id);
 }
@@ -319,11 +237,6 @@ int32_t platform_init(void)
      * Prepare for the MU Interrupt
      *  MU must be initialized before rpmsg init is called
      */
-#if (0)
-    MU_Init(BOARD_MU_BASE_ADDR);
-    NVIC_SetPriority(BOARD_MU_IRQ_NUM, APP_MU_IRQ_PRIORITY);
-    NVIC_EnableIRQ(BOARD_MU_IRQ_NUM);
-#endif
 
     /* Create lock used in multi-instanced RPMsg */
 #if defined(RL_USE_STATIC_API) && (RL_USE_STATIC_API == 1)

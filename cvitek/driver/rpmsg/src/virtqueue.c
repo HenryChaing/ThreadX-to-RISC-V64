@@ -93,7 +93,6 @@ int32_t virtqueue_create_static(uint16_t id,
         vq->vq_ring_mem  = (void *)ring->phy_addr;
 
         vring_init(&vq->vq_ring, vq->vq_nentries, vq->vq_ring_mem, (uint32_t)vq->vq_alignment);
-        printf("(%p, %p, %p)\n", vq->vq_ring.desc, vq->vq_ring.avail, vq->vq_ring.used);
 
         /* Cache flush initialized virt queue ring pointers */
         VQUEUE_FLUSH(vq->vq_ring.avail, sizeof(struct vring_avail));
@@ -375,10 +374,8 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
     VQUEUE_INVALIDATE(&vq->vq_ring.avail->idx, sizeof(vq->vq_ring.avail->idx));
     if (vq->vq_available_idx == vq->vq_ring.avail->idx)
     {
-        // printf("(vring avail idx equ): (%d)\n", vq->vq_ring.avail->idx);
         return (VQ_NULL);
     }
-    // printf("(vring avail idx nequ): (%d)\n", vq->vq_ring.avail->idx);
 
     VQUEUE_BUSY(vq, avail_read);
 
@@ -395,8 +392,6 @@ void *virtqueue_get_available_buffer(struct virtqueue *vq, uint16_t *avail_idx, 
     buffer = env_map_patova(vq->env, ((uint32_t)(vq->vq_ring.desc[*avail_idx].addr)));
 #else
     buffer   = env_map_patova((uint32_t)(vq->vq_ring.desc[*avail_idx].addr));
-    // printf("desc addr: %x\n", &vq->vq_ring.desc[*avail_idx]);
-    // printf("desc addr: %x\n", (uint32_t)(vq->vq_ring.desc[*avail_idx].addr));
 #endif
     *len = vq->vq_ring.desc[*avail_idx].len;
 

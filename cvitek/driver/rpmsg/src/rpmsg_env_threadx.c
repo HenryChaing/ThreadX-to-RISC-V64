@@ -22,8 +22,6 @@
 #include "tx_api.h"
 #include "tx_event_flags.h"
 #include "rpmsg_platform.h"
-// #include "fsl_common.h"
-// #include "fsl_component_mem_manager.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>  /* For INT32_MAX */
@@ -127,14 +125,12 @@ void env_tx_callback(uint32_t link_id)
 int32_t env_init(void)
 {
     int32_t retval;
-    // uint32_t regPrimask = DisableGlobalIRQ(); /* stop scheduler */
     platform_interrupt_disable(0);
 
     /* verify 'env_init_counter' */
     RL_ASSERT(env_init_counter >= 0);
     if (env_init_counter < 0)
     {
-        // EnableGlobalIRQ(regPrimask); /* re-enable scheduler */
         platform_interrupt_enable(0);
         return -1;
     }
@@ -145,13 +141,11 @@ int32_t env_init(void)
         /* first call */
         if (TX_SUCCESS != tx_semaphore_create((TX_SEMAPHORE *)&env_sema, NULL, 0))
         {
-            // EnableGlobalIRQ(regPrimask);
             platform_interrupt_enable(0);
             return -1;
         }
         (void)tx_event_flags_create(&event_group, NULL);
         (void)memset(isr_table, 0, sizeof(isr_table));
-        // EnableGlobalIRQ(regPrimask);
         platform_interrupt_enable(0);
         retval = platform_init();
         tx_semaphore_put((TX_SEMAPHORE *)&env_sema);
@@ -160,7 +154,6 @@ int32_t env_init(void)
     }
     else
     {
-        // EnableGlobalIRQ(regPrimask);
         platform_interrupt_enable(0);
         /* Get the semaphore and then return it,
          * this allows for platform_init() to block
@@ -186,13 +179,11 @@ int32_t env_deinit(void)
 {
     int32_t retval;
 
-    // uint32_t regPrimask = DisableGlobalIRQ(); /* stop scheduler */
     platform_interrupt_disable(0);
     /* verify 'env_init_counter' */
     RL_ASSERT(env_init_counter > 0);
     if (env_init_counter <= 0)
     {
-        // EnableGlobalIRQ(regPrimask); /* re-enable scheduler */
         platform_interrupt_enable(0);
         return -1;
     }
@@ -209,13 +200,11 @@ int32_t env_deinit(void)
         (void)memset(&event_group, 0, sizeof(event_group));
         (void)tx_semaphore_delete((TX_SEMAPHORE *)&env_sema);
         (void)memset(&env_sema, 0, sizeof(env_sema));
-        // EnableGlobalIRQ(regPrimask);
         platform_interrupt_enable(0);
         return retval;
     }
     else
     {
-        // EnableGlobalIRQ(regPrimask);
         platform_interrupt_enable(0);
         return 0;
     }
@@ -317,7 +306,6 @@ int32_t env_strncmp(char *dest, const char *src, uint32_t len)
  */
 void env_mb(void)
 {
-    // MEM_BARRIER();
     __asm volatile("fence rw, rw");
 }
 
@@ -326,7 +314,6 @@ void env_mb(void)
  */
 void env_rmb(void)
 {
-    // MEM_BARRIER();
     __asm volatile("fence rw, rw");
 }
 
@@ -335,7 +322,6 @@ void env_rmb(void)
  */
 void env_wmb(void)
 {
-    // MEM_BARRIER();
     __asm volatile("fence rw, rw");
 }
 
@@ -642,7 +628,6 @@ void env_isr(uint32_t vector)
         info = &isr_table[vector];
         virtqueue_notification((struct virtqueue *)info->data);
     }
-    // printf("line 645\n");
 }
 
 /*
