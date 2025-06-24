@@ -76,9 +76,11 @@ UCHAR byte_pool_memory[DEMO_BYTE_POOL_SIZE] __attribute__ ( (section( ".heap" ))
 void prvCmdQuRunTask(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
+void thread_led_entry(ULONG thread_input);
 void thread_rpmsg_entry(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
+TX_THREAD thread_led;
 TX_THREAD mail_thread;
 TX_THREAD thread_rpmsg;
 volatile int thread_0_counter = 10;
@@ -130,6 +132,14 @@ void tx_application_define(void *first_unused_memory)
 	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
 	IS_TX_ERROR(ret);
 
+	ret = tx_thread_create(&thread_led, "thread led", thread_led_entry, 99, pointer,
+			 DEMO_STACK_SIZE, 6, 6, 10,
+			 TX_AUTO_START);
+	IS_TX_ERROR(ret);
+
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
+	IS_TX_ERROR(ret);
+
 	ret = tx_thread_create(&mail_thread, "mail thread", prvCmdQuRunTask, 0, 
 			 pointer, DEMO_STACK_SIZE, 1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
 	IS_TX_ERROR(ret);
@@ -174,14 +184,29 @@ void thread_1_entry(ULONG thread_input)
 	}
 }
 
+static volatile int period = 500;
+void thread_led_entry(ULONG thread_input)
+{
+	(void)thread_input;
+
+	printf("thread led in\n");
+	while (1) {
+		duo_led_control(1);
+		tx_thread_sleep(TX_MS_TO_TICKS(period));
+		duo_led_control(0);
+		tx_thread_sleep(TX_MS_TO_TICKS(period));  
+	}
+}
+
 #define LOCAL_EPT_ADDR                (30U)
+#define LED_EPT_ADDR                (32U)
 uint32_t *shared_memory = (uint32_t *)0x8fc00000;
 struct rpmsg_lite_instance *gp_rpmsg_dev_inst;
-struct rpmsg_lite_endpoint *gp_rpmsg_ept;
+struct rpmsg_lite_endpoint *gp_rpmsg_ept, *gp_led_ept;
 struct rpmsg_lite_instance g_rpmsg_ctxt;
-struct rpmsg_lite_ept_static_context g_ept_context;
-volatile int32_t g_has_received;
-static uint32_t g_remote_addr     = 0;
+struct rpmsg_lite_ept_static_context g_ept_context, g_ept_led_context;
+volatile int32_t g_has_received, led_has_recieved;
+static uint32_t g_remote_addr = 0, led_remote_addr = 0;
 
 typedef struct the_message
 {
@@ -189,7 +214,7 @@ typedef struct the_message
 } THE_MESSAGE, *THE_MESSAGE_PTR;
 
 static THE_MESSAGE volatile g_msg = {0};
-
+static THE_MESSAGE volatile led_msg = {0};
 
 /* Internal functions */
 static int32_t rpmsg_ept_read_cb(void *payload, uint32_t payload_len, uint32_t src, void *priv)
@@ -204,6 +229,20 @@ static int32_t rpmsg_ept_read_cb(void *payload, uint32_t payload_len, uint32_t s
     return RL_RELEASE;
 }
 
+static int32_t rpmsg_ept_led_cb(void *payload, uint32_t payload_len, uint32_t src, void *priv)
+{
+    volatile int32_t *has_received = priv;
+    if (payload_len <= sizeof(THE_MESSAGE))
+    {
+		(void)memcpy((void *)&led_msg, payload, payload_len);
+        printf("period: %d\n",led_msg.DATA);
+		period = led_msg.DATA;
+		led_remote_addr = src;
+        *has_received = 1;
+    }
+    return RL_RELEASE;
+}
+
 void thread_rpmsg_entry(ULONG thread_input)
 {
     (void)thread_input;
@@ -212,6 +251,9 @@ void thread_rpmsg_entry(ULONG thread_input)
 
     gp_rpmsg_ept = rpmsg_lite_create_ept(gp_rpmsg_dev_inst, LOCAL_EPT_ADDR, rpmsg_ept_read_cb, (void *)&g_has_received,
                                          &g_ept_context);
+
+	gp_led_ept = rpmsg_lite_create_ept(gp_rpmsg_dev_inst, LED_EPT_ADDR, rpmsg_ept_led_cb, (void *)&led_has_recieved,
+										&g_ept_led_context);
 
 	gp_rpmsg_dev_inst->link_state = RL_TRUE;
     int result = rpmsg_ns_announce(gp_rpmsg_dev_inst, gp_rpmsg_ept, "rpmsg-sg2002-c906l-channel", (uint32_t)RL_NS_CREATE);
@@ -227,6 +269,12 @@ void thread_rpmsg_entry(ULONG thread_input)
             g_msg.DATA++;
 			printf("send: %d\n",g_msg.DATA);
             (void)rpmsg_lite_send(gp_rpmsg_dev_inst, gp_rpmsg_ept, g_remote_addr, (char *)&g_msg, sizeof(THE_MESSAGE),
+                                  RL_DONT_BLOCK);
+        }
+		if (1 == led_has_recieved)
+        {
+			led_has_recieved = 0;
+            (void)rpmsg_lite_send(gp_rpmsg_dev_inst, gp_led_ept, led_remote_addr, (char *)&led_msg, sizeof(THE_MESSAGE),
                                   RL_DONT_BLOCK);
         }
     }

@@ -7,7 +7,8 @@
  * GPIO_SWPORTA_DR register to control the GPIO output level.
  */
 
-#define GPIO2 0x03022000
+#define GPIO_RTCSYS 0x05021000
+#define GPIO_LED 2
 #define GPIO_SWPORTA_DR 0x000
 #define GPIO_SWPORTA_DDR 0x004
 

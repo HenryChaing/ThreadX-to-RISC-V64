@@ -8,7 +8,7 @@ include_directories(${CMAKE_INSTALL_INC_PREFIX}/arch)
 include_directories(${CMAKE_INSTALL_INC_PREFIX}/common)
 include_directories(${CMAKE_INSTALL_INC_PREFIX}/kernel)
 include_directories(${CMAKE_INSTALL_INC_PREFIX}/hal/config)
-include_directories(${CMAKE_INSTALL_INC_PREFIX}/driver/rtos_cmdqu)
+include_directories(${CMAKE_DRIVER_DIR}/rtos_cmdqu/include)
 
 add_library(rpmsg OBJECT ${_SOURCES})
 
