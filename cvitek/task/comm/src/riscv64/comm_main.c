@@ -15,6 +15,10 @@
 #include "comm.h"
 #include "cvi_spinlock.h"
 
+/* RPMsg includes*/
+#include "rpmsg_lite.h"
+#include "rpmsg_ns.h"
+
 /* Milk-V Duo */
 #include "milkv_duo_io.h"
 
@@ -513,9 +517,11 @@ UINT    status;
 void prvCmdQuRunTask(ULONG thread_input);
 void thread_0_entry(ULONG thread_input);
 void thread_1_entry(ULONG thread_input);
+void thread_rpmsg_entry(ULONG thread_input);
 TX_THREAD thread_0;
 TX_THREAD thread_1;
 TX_THREAD mail_thread;
+TX_THREAD thread_rpmsg;
 volatile int thread_0_counter = 10;
 volatile int thread_1_counter = 10;
 TX_BYTE_POOL byte_pool_0;
@@ -568,6 +574,14 @@ void tx_application_define(void *first_unused_memory)
 	ret = tx_thread_create(&mail_thread, "mail thread", prvCmdQuRunTask, 0, 
 			 pointer, DEMO_STACK_SIZE, 1, 1, TX_NO_TIME_SLICE, TX_AUTO_START);
 	IS_TX_ERROR(ret);
+
+	ret = tx_byte_allocate(&byte_pool_0, (VOID **)&pointer, DEMO_STACK_SIZE * 10, TX_NO_WAIT);
+	IS_TX_ERROR(ret);
+
+	ret = tx_thread_create(&thread_rpmsg, "thread rpmsg", thread_rpmsg_entry, 0, pointer,
+			 DEMO_STACK_SIZE * 10, 6, 6, 10,
+			 TX_AUTO_START);
+	IS_TX_ERROR(ret);
 }
 
 void thread_0_entry(ULONG thread_input)
@@ -601,6 +615,69 @@ void thread_1_entry(ULONG thread_input)
 	}
 }
 
+#define LOCAL_EPT_ADDR                (30U)
+uint32_t *shared_memory = (uint32_t *)0x8fc00000;
+struct rpmsg_lite_instance *gp_rpmsg_dev_inst;
+struct rpmsg_lite_endpoint *gp_rpmsg_ept;
+struct rpmsg_lite_instance g_rpmsg_ctxt;
+struct rpmsg_lite_ept_static_context g_ept_context;
+volatile int32_t g_has_received;
+static uint32_t g_remote_addr     = 0;
+
+typedef struct the_message
+{
+    uint32_t DATA;
+} THE_MESSAGE, *THE_MESSAGE_PTR;
+
+static THE_MESSAGE volatile g_msg = {0};
+
+
+/* Internal functions */
+static int32_t rpmsg_ept_read_cb(void *payload, uint32_t payload_len, uint32_t src, void *priv)
+{
+    volatile int32_t *has_received = priv;
+    if (payload_len <= sizeof(THE_MESSAGE))
+    {
+		(void)memcpy((void *)&g_msg, payload, payload_len);
+        g_remote_addr = src;
+        *has_received = 1;
+    }
+    return RL_RELEASE;
+}
+
+void thread_rpmsg_entry(ULONG thread_input)
+{
+    (void)thread_input;
+
+    gp_rpmsg_dev_inst = rpmsg_lite_remote_init(shared_memory, 0, RL_NO_FLAGS, &g_rpmsg_ctxt);
+
+    gp_rpmsg_ept = rpmsg_lite_create_ept(gp_rpmsg_dev_inst, LOCAL_EPT_ADDR, rpmsg_ept_read_cb, (void *)&g_has_received,
+                                         &g_ept_context);
+
+	gp_rpmsg_dev_inst->link_state = RL_TRUE;
+    int result = rpmsg_ns_announce(gp_rpmsg_dev_inst, gp_rpmsg_ept, "rpmsg-sg2002-c906l-channel", (uint32_t)RL_NS_CREATE);
+    if (result){
+        RL_ASSERT(result == 0);
+    }
+
+    for(;;)
+    {
+        if (1 == g_has_received)
+        {
+			g_has_received = 0;
+            g_msg.DATA++;
+			printf("send: %d\n",g_msg.DATA);
+            (void)rpmsg_lite_send(gp_rpmsg_dev_inst, gp_rpmsg_ept, g_remote_addr, (char *)&g_msg, sizeof(THE_MESSAGE),
+                                  RL_DONT_BLOCK);
+        }
+    }
+
+    (void)rpmsg_lite_destroy_ept(gp_rpmsg_dev_inst, gp_rpmsg_ept);
+    gp_rpmsg_ept = ((void *)0);
+    (void)rpmsg_lite_deinit(gp_rpmsg_dev_inst);
+    g_msg.DATA = 0U;
+}
+
 void prvCmdQuRunTask(ULONG thread_input)
 {
 	/* Remove compiler warning about unused parameter. */
@@ -630,6 +707,12 @@ void prvCmdQuRunTask(ULONG thread_input)
 		tx_queue_receive(&mailbox_queue, &rtos_cmdq, TX_WAIT_FOREVER);
 
 		switch (rtos_cmdq.cmd_id) {
+		case 0 :
+			env_isr(0);
+			break;
+		case 1 :
+			env_isr(1);
+			break;
 		case CMD_TEST_A:
 			//do something
 			//send to C906B

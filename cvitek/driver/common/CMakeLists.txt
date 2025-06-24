@@ -7,6 +7,7 @@ include_directories(${DRIVER_UART_DIR}/include)
 include_directories(${DRIVER_I2C_DIR}/include)
 include_directories(${DRIVER_RTOS_CMDQU_DIR}/include)
 include_directories(${DRIVER_FAST_IMAGE_DIR}/include)
+include_directories(${DRIVER_RPMSG_DIR}/include)
 
 include_directories(${CMAKE_INSTALL_INC_PREFIX}/arch)
 include_directories(${CMAKE_INSTALL_INC_PREFIX}/common)

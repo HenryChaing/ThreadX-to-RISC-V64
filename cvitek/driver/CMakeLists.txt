@@ -64,6 +64,7 @@ if (RUN_ARCH STREQUAL "riscv64")
 set(DRIVER_UART_DIR ${CMAKE_DRIVER_DIR}/uart)
 set(DRIVER_SPINLOCK_DIR ${CMAKE_DRIVER_DIR}/spinlock)
 set(DRIVER_RTOS_CMDQU_DIR ${CMAKE_DRIVER_DIR}/rtos_cmdqu)
+set(DRIVER_RPMSG_DIR ${CMAKE_DRIVER_DIR}/rpmsg)
 
 set(driver_list
 	common
@@ -72,6 +73,7 @@ set(driver_list
 	spinlock
 	gpio
 	rtos_cmdqu
+	rpmsg
 )
 else()
 set(DRIVER_BASE_DIR ${CMAKE_DRIVER_DIR}/base)
